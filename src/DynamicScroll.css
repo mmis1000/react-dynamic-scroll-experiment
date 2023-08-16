@@ -1,0 +1,5 @@
+.dyn.root {
+  overflow: auto;
+  height: 100vh;
+  overflow-anchor: none;
+}
