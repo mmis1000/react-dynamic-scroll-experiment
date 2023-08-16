@@ -45,27 +45,6 @@ interface DynamicScrollProps<Data extends DataBase> {
   onAppend: LoadHandler<Data>;
 }
 
-interface BaseState {
-  state: string;
-}
-interface InitialState extends BaseState {
-  state: "init";
-}
-interface FetchingState extends BaseState {
-  controller: AbortController;
-}
-interface FetchingPrevState extends FetchingState {
-  state: "fetch-prev";
-  controller: AbortController;
-}
-interface FetchingNextState extends FetchingState {
-  state: "fetch-next";
-  controller: AbortController;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-type State = InitialState | FetchingPrevState | FetchingNextState;
-
 const useRefState = <S,>(v: S | (() => S)) => {
   const [state, setState] = useState<S>(v);
   const ref = useRef(state);
@@ -115,26 +94,37 @@ export const DrynamicScroll = <T extends DataBase>(
   const scrollerRef = useRef<HTMLDivElement>();
 
   useLayoutEffect(() => {
-    setHeight(scrollerRef.current!.offsetHeight);
-  });
+    if (scrollerRef.current) {
+      setHeight(scrollerRef.current!.offsetHeight);
+      const cb: ResizeObserverCallback = () => {
+        setHeight(scrollerRef.current!.offsetHeight);
+      }
+      const observer = new ResizeObserver(cb)
+      observer.observe(scrollerRef.current)
+      return () => {
+        observer.disconnect()
+      }
+    }
+    
+  }, []);
 
   // const [fetchState, setFetchState] = useState<State>({ state: "init" });
 
-  const [hasInterationBefore, setHasInterationBefore] = useState(0)
+  const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasFocusedInteration, setHasFocusedInteration, hasFocusedInterationRef] = useRefState(false)
+  const [hasFocusedInteraction, setHasFocusedInteraction, hasFocusedInteractionRef] = useRefState(false)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasInteration, setHasInteration, hasInterationRef] = useRefState(false)
+  const [hasInteraction, setHasInteraction, hasInteractionRef] = useRefState(false)
   /** 0 ~ Infinity */
   const [negativeSpace, setNegativeSpace, negativeSpaceRef] = useRefState(0)
 
   useEffect(() => {
     const now = Date.now()
-    if (hasInterationBefore > now) {
-      setHasInteration(true)
-      if (hasInterationBefore !== Infinity) {
+    if (hasInteractionBefore > now) {
+      setHasInteraction(true)
+      if (hasInteractionBefore !== Infinity) {
         const id = setTimeout(() => {
-          setHasInteration(false)
+          setHasInteraction(false)
           if (negativeSpaceRef.current !== 0) {
             const space = negativeSpaceRef.current
             const rootEl = scrollerRef.current!
@@ -146,14 +136,14 @@ export const DrynamicScroll = <T extends DataBase>(
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
           }
-        }, hasInterationBefore - now)
+        }, hasInteractionBefore - now)
         return () => {
           clearTimeout(id)
         }
       }
       return
     } else {
-      setHasInteration(false)
+      setHasInteraction(false)
       if (negativeSpaceRef.current !== 0) {
         const space = negativeSpaceRef.current
         const rootEl = scrollerRef.current!
@@ -166,7 +156,7 @@ export const DrynamicScroll = <T extends DataBase>(
         rootEl.style.overflow = "auto";
       }
     }
-  }, [hasInterationBefore, negativeSpaceRef, setHasInteration, setNegativeSpace])
+  }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
 
   const onSizeUpdate = useCallback((height: number, index: number) => {
     setDataStates(dataStates => dataStates.map((e) => {
@@ -253,7 +243,7 @@ export const DrynamicScroll = <T extends DataBase>(
       });
       // debugger
       if (position === "prev") {
-        if (hasInterationRef.current) {
+        if (hasInteractionRef.current) {
           flushSync(() => {
             setNegativeSpace(val => val + heightSum)
           })
@@ -265,10 +255,10 @@ export const DrynamicScroll = <T extends DataBase>(
         }
       }
     },
-    [currentBaseRef, currentOffsetRef, dataStateRef, hasInterationRef, setCurrentBase, setCurrentOffset, setDataStates, setNegativeSpace]
+    [currentBaseRef, currentOffsetRef, dataStateRef, hasInteractionRef, setCurrentBase, setCurrentOffset, setDataStates, setNegativeSpace]
   );
 
-  // cauculate whether we need to fetch more
+  // calculate whether we need to fetch more
 
   const heightSum = dataStates
     .map((i) => i.size ?? i.data.initialHeight)
@@ -317,10 +307,10 @@ export const DrynamicScroll = <T extends DataBase>(
   const elements = dataStates.map((s) => s.el);
 
   const onScroll: UIEventHandler<HTMLDivElement> = (ev) => {
-    if (hasFocusedInteration) {
-      setHasInterationBefore(Infinity)
+    if (hasFocusedInteraction) {
+      setHasInteractionBefore(Infinity)
     } else {
-      setHasInterationBefore(Date.now() + INTERATION_CHANGE_DELAY)
+      setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
     }
 
     if (dataStates.length === 0) {
@@ -369,14 +359,14 @@ export const DrynamicScroll = <T extends DataBase>(
 
   const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {
     console.log(ev)
-    setHasFocusedInteration(true)
-    setHasInterationBefore(Infinity)
+    setHasFocusedInteraction(true)
+    setHasInteractionBefore(Infinity)
   }
 
   const stopInterationShortly: TouchEventHandler<HTMLDivElement> = (ev) => {
     console.log(ev)
-    setHasFocusedInteration(false)
-    setHasInterationBefore(Date.now() + INTERATION_CHANGE_DELAY)
+    setHasFocusedInteraction(false)
+    setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
   }
 
 
