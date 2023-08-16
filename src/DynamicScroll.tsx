@@ -135,7 +135,7 @@ export const DrynamicScroll = <T extends DataBase>(
       if (hasInterationBefore !== Infinity) {
         const id = setTimeout(() => {
           setHasInteration(false)
-          if (negativeSpaceRef.current > 0) {
+          if (negativeSpaceRef.current !== 0) {
             const space = negativeSpaceRef.current
             const rootEl = scrollerRef.current!
             flushSync(() => {
@@ -154,7 +154,7 @@ export const DrynamicScroll = <T extends DataBase>(
       return
     } else {
       setHasInteration(false)
-      if (negativeSpaceRef.current > 0) {
+      if (negativeSpaceRef.current !== 0) {
         const space = negativeSpaceRef.current
         const rootEl = scrollerRef.current!
         flushSync(() => {
@@ -243,7 +243,7 @@ export const DrynamicScroll = <T extends DataBase>(
           }
           // overrun
           if (entries[target] == null) {
-            // goback by one
+            // go back by one
             target -= 1;
             newOffset += entries[entries.length - 1][1].initialHeight;
           }
