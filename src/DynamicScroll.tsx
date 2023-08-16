@@ -70,7 +70,7 @@ export const DrynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
-    maxLiveViewport = 8000,
+    maxLiveViewport = 2000,
     onAppend,
     onPrepend
   }: DynamicScrollProps<T>
@@ -130,10 +130,10 @@ export const DrynamicScroll = <T extends DataBase>(
           if (negativeSpaceRef.current !== 0) {
             const space = negativeSpaceRef.current
             const rootEl = scrollerRef.current!
+            const old = rootEl.scrollTop;
             flushSync(() => {
               setNegativeSpace(0)
             })
-            const old = rootEl.scrollTop;
             rootEl.style.overflow = "hidden";
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
@@ -149,10 +149,10 @@ export const DrynamicScroll = <T extends DataBase>(
       if (negativeSpaceRef.current !== 0) {
         const space = negativeSpaceRef.current
         const rootEl = scrollerRef.current!
+        const old = rootEl.scrollTop;
         flushSync(() => {
           setNegativeSpace(0)
         })
-        const old = rootEl.scrollTop;
         rootEl.style.overflow = "hidden";
         rootEl.scrollTop = old + space;
         rootEl.style.overflow = "auto";
@@ -340,7 +340,6 @@ export const DrynamicScroll = <T extends DataBase>(
             setDataStates(ds => ds.slice(removeUntil))
             setNegativeSpace(val => val - sumDiff)
           })
-          console.log('end')
         } else {
           flushSync(() => {
             setDataStates(ds => ds.slice(removeUntil))
@@ -412,8 +411,8 @@ export const DrynamicScroll = <T extends DataBase>(
       const offset = pos - prependSpace;
       setCurrentOffset(offset);
       setCurrentBase(newBase.index);
-      console.log(offset);
-      console.log(newBase.index);
+      // console.log(offset);
+      // console.log(newBase.index);
       return;
     }
     // in list
@@ -423,8 +422,8 @@ export const DrynamicScroll = <T extends DataBase>(
       if (offset + height > pos) {
         setCurrentOffset(pos - offset);
         setCurrentBase(item.index);
-        console.log(pos - offset);
-        console.log(item.index);
+        // console.log(pos - offset);
+        // console.log(item.index);
         return;
       }
       offset += height;
@@ -433,8 +432,8 @@ export const DrynamicScroll = <T extends DataBase>(
     const item = dataStates[dataStates.length - 1];
     setCurrentOffset(pos - offset + getHeight(item));
     setCurrentBase(item.index);
-    console.log(pos - offset + getHeight(item));
-    console.log(item.index);
+    // console.log(pos - offset + getHeight(item));
+    // console.log(item.index);
   };
 
   const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {

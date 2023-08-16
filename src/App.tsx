@@ -11,9 +11,12 @@ function App() {
     await new Promise<void>(resolve => setTimeout(resolve, DELAY))
     const arr: Array<[ReactElement<DynamicChildElementProps>, { index: number, initialHeight: number }]> = []
     for (let i = 0; i < COUNT; i++) {
-      arr.unshift([<div style={{height: '100px', background: '#774'}} key={index - i - 1}>
-        {index - i - 1}
-      </div>, { index: index - i - 1, initialHeight: 100 }])
+      const height = ~~(Math.random() * 50 + 75)
+      const color = ~~(360 * Math.random())
+      arr.unshift([<div style={{height: height, background: `hsl(${color}deg 30% 60%)`}} key={index - i - 1}>
+        index: {index - i - 1} <br/>
+        height: {height}
+      </div>, { index: index - i - 1, initialHeight: height }])
     }
     return arr
   }
@@ -23,9 +26,12 @@ function App() {
     await new Promise<void>(resolve => setTimeout(resolve, DELAY))
     const arr: Array<[ReactElement<DynamicChildElementProps>, { index: number, initialHeight: number }]> = []
     for (let i = 0; i < COUNT; i++) {
-      arr.push([<div style={{height: '100px', background: '#774'}} key={index + i + 1}>
-        {index + i + 1}
-      </div>, { index: index + i + 1, initialHeight: 100 }])
+      const height = ~~(Math.random() * 50 + 75)
+      const color = ~~(360 * Math.random())
+      arr.push([<div style={{height: height, background: `hsl(${color}deg 30% 60%)`}} key={index + i + 1}>
+        index: {index + i + 1} <br/>
+        height: {height}
+      </div>, { index: index + i + 1, initialHeight: height }])
     }
     return arr
   }
