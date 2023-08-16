@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   ReactElement,
   TouchEventHandler,
   UIEventHandler,
@@ -11,7 +12,7 @@ import {
 import { flushSync } from "react-dom";
 import "./DynamicScroll.css";
 
-interface DataBase {
+export interface DataBase {
   index: number;
   initialHeight: number;
 }
@@ -34,7 +35,7 @@ export interface LoadHandler<Data extends DataBase> {
     index: number,
     props: DynamicChildProps,
     datas: DataEntry<Data>[],
-    signal: AbortSignal
+    signal: AbortSignal,
   ): Promise<[ReactElement<DynamicChildElementProps>, Data][]>;
 }
 
@@ -44,7 +45,8 @@ interface DynamicScrollProps<Data extends DataBase> {
   maxLiveViewport?: number;
   onPrepend: LoadHandler<Data>;
   onAppend: LoadHandler<Data>;
-  className?: string
+  className?: string,
+  style?: CSSProperties,
 }
 
 const useRefState = <S,>(v: S | (() => S)) => {
@@ -67,14 +69,15 @@ const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
 const INTERATION_CHANGE_DELAY = 100;
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
-export const DrynamicScroll = <T extends DataBase>(
+export const DynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
     maxLiveViewport = 2000,
     onAppend,
     onPrepend,
-    className
+    className,
+    style
   }: DynamicScrollProps<T>
 ) => {
   const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
@@ -116,7 +119,7 @@ export const DrynamicScroll = <T extends DataBase>(
 
   const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasFocusedInteraction, setHasFocusedInteraction, hasFocusedInteractionRef] = useRefState(false)
+  const [hasFocusedInteraction, setHasFocusedInteraction] = useRefState(false)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [hasInteraction, setHasInteraction, hasInteractionRef] = useRefState(false)
   /** 0 ~ Infinity */
@@ -452,7 +455,7 @@ export const DrynamicScroll = <T extends DataBase>(
 
 
   return (
-    <div ref={onRefed} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
+    <div ref={onRefed} style={style} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
       <div style={{ height: `${prependSpace}px` }} />
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}

@@ -1,0 +1,27 @@
+.demo2 {
+    /* set it inline */
+    --cols: 0; 
+}
+
+.demo2 .item {
+    position: relative;
+    /* set it inline */
+    --row-height: 0;
+    height: calc(1px * var(--row-height));
+
+}
+
+.demo2 .item .box {
+    /* set it inline */
+    --index: -1; 
+    /* set it inline */
+    --top: 0;
+    /* set it inline */
+    --height: 0;
+
+    position: absolute;
+    width: calc(100% / var(--cols));
+    left: calc(100% / var(--cols) * var(--index));
+    top: calc(1px * var(--top));
+    height: calc(1px * var(--height));
+}
