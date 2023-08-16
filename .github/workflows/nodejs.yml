@@ -41,5 +41,5 @@ jobs:
     - run: git config user.email "${GITHUB_ACTOR}@ci"
     - run: git config user.name "${GITHUB_ACTOR}"
     - run: git remote remove origin
-    - run: git remote add origin "https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git"
+    - run: git remote add origin "https://${GITHUB_ACTOR}:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.event.repository.name }}.git"
     - run: npx gh-pages@3.2.3 --no-history --dist dist-site --message "[skip ci] Updates"
