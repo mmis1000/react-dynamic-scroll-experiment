@@ -38,7 +38,7 @@ function App() {
 
   return (
     <div className="App">
-      <DrynamicScroll prependSpace={5000} appendSpace={5000} onPrepend={onPrepend} onAppend={onAppend}/>
+      <DrynamicScroll className="content" prependSpace={5000} appendSpace={5000} onPrepend={onPrepend} onAppend={onAppend}/>
     </div>
   );
 }

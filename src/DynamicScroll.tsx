@@ -44,6 +44,7 @@ interface DynamicScrollProps<Data extends DataBase> {
   maxLiveViewport?: number;
   onPrepend: LoadHandler<Data>;
   onAppend: LoadHandler<Data>;
+  className?: string
 }
 
 const useRefState = <S,>(v: S | (() => S)) => {
@@ -72,7 +73,8 @@ export const DrynamicScroll = <T extends DataBase>(
     appendSpace,
     maxLiveViewport = 2000,
     onAppend,
-    onPrepend
+    onPrepend,
+    className
   }: DynamicScrollProps<T>
 ) => {
   const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
@@ -450,7 +452,7 @@ export const DrynamicScroll = <T extends DataBase>(
 
 
   return (
-    <div ref={onRefed} className="dyn root" onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
+    <div ref={onRefed} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
       <div style={{ height: `${prependSpace}px` }} />
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
