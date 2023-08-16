@@ -36,7 +36,7 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
     - run: npm ci
-    - run: npm run build
+    - run: BASE='/${{ github.repository }}/' npm run build
     - run: mv dist dist-site
     - run: git config user.email "${GITHUB_ACTOR}@ci"
     - run: git config user.name "${GITHUB_ACTOR}"
