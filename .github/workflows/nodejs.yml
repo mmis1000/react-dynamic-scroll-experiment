@@ -35,7 +35,7 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
-    - run: npm ci && cd docs && npm ci
+    - run: npm ci
     - run: npm run build
     - run: mv dist dist-site
     - run: git config user.email "${GITHUB_ACTOR}@ci"
