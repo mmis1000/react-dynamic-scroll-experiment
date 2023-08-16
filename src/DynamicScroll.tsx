@@ -41,6 +41,7 @@ export interface LoadHandler<Data extends DataBase> {
 interface DynamicScrollProps<Data extends DataBase> {
   prependSpace: number;
   appendSpace: number;
+  maxLiveViewport?: number;
   onPrepend: LoadHandler<Data>;
   onAppend: LoadHandler<Data>;
 }
@@ -69,6 +70,7 @@ export const DrynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
+    maxLiveViewport = 8000,
     onAppend,
     onPrepend
   }: DynamicScrollProps<T>
@@ -265,9 +267,11 @@ export const DrynamicScroll = <T extends DataBase>(
     .reduce((p, v) => p + v, 0);
   let currentScroll = 0;
 
+  let itemIndex: number = -1
   for (let i = 0; i < dataStates.length; i++) {
     if (currentBase === dataStates[i].index) {
       currentScroll += currentOffset;
+      itemIndex = i
       break;
     } else {
       currentScroll += getHeight(dataStates[i]);
@@ -280,6 +284,13 @@ export const DrynamicScroll = <T extends DataBase>(
     dataStates.length > 1 &&
     currentBase === getIndex(dataStates[0]) &&
     currentOffset < 0;
+
+  const trimPrev = !(fetchNext || fetchPrev ) && currentScroll > maxLiveViewport 
+  const trimNext = !trimPrev && !(fetchNext || fetchPrev ) && heightSum - currentScroll > maxLiveViewport
+
+  const trimItemIndex = (trimPrev || trimNext) ? itemIndex : 0
+  const trimOffset = (trimPrev || trimNext) ? currentOffset : 0
+  const trimHasInteraction = (trimPrev || trimNext) ? hasInteraction : false
 
   useEffect(() => {
     if (fetchNext) {
@@ -301,8 +312,77 @@ export const DrynamicScroll = <T extends DataBase>(
       return () => {
         controller.abort();
       };
+    } else if (trimPrev) {
+      const id = setTimeout(() => {
+
+        let length = 0
+        let removeUntil = 0
+  
+        for (let i = trimItemIndex; i >= 0; i--) {
+          let newLength
+          if (i === trimItemIndex) {
+            newLength = length + trimOffset
+          } else {
+            newLength = length +  getHeight(dataStates[i])
+          }
+          if (newLength >= maxLiveViewport) {
+            break
+          }
+          removeUntil = i
+          length = newLength
+        }
+  
+        const sumDiff = dataStates.slice(0, removeUntil).map(i => getHeight(i)).reduce((p, v) => p + v, 0)
+  
+        // remove element
+        if (trimHasInteraction) {
+          flushSync(() => {
+            setDataStates(ds => ds.slice(removeUntil))
+            setNegativeSpace(val => val - sumDiff)
+          })
+          console.log('end')
+        } else {
+          flushSync(() => {
+            setDataStates(ds => ds.slice(removeUntil))
+          })
+          if (scrollerRef.current) {
+            const old = scrollerRef.current.scrollTop;
+            // rootEl.style.overflow = "hidden";
+            scrollerRef.current.scrollTop = old - sumDiff;
+            // rootEl.style.overflow = "auto";
+          }
+        }
+      })
+      return () => {
+        clearTimeout(id)
+      }
+    } else if (trimNext) {
+      const id = setTimeout(() => {
+
+        let length = 0
+        let removeAfter = 0
+  
+        for (let i = trimItemIndex; i < dataStates.length - 1; i++) {
+          let newLength
+          if (i === trimItemIndex) {
+            newLength = getHeight(dataStates[i]) - trimOffset
+          } else {
+            newLength = length +  getHeight(dataStates[i])
+          }
+          if (newLength >= maxLiveViewport) {
+            break
+          }
+          removeAfter = i
+          length = newLength
+        }
+
+        setDataStates(ds => ds.slice(0, removeAfter))
+      })
+      return () => {
+        clearTimeout(id)
+      }
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate]);
+  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum]);
 
   const elements = dataStates.map((s) => s.el);
 
@@ -363,7 +443,7 @@ export const DrynamicScroll = <T extends DataBase>(
     setHasInteractionBefore(Infinity)
   }
 
-  const stopInterationShortly: TouchEventHandler<HTMLDivElement> = (ev) => {
+  const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = (ev) => {
     console.log(ev)
     setHasFocusedInteraction(false)
     setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
@@ -371,9 +451,9 @@ export const DrynamicScroll = <T extends DataBase>(
 
 
   return (
-    <div ref={onRefed} className="dyn root" onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInterationShortly}>
+    <div ref={onRefed} className="dyn root" onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
       <div style={{ height: `${prependSpace}px` }} />
-      <div style={{ marginTop: `-${negativeSpace}px` }} />
+      <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
       <div style={{ height: `${appendSpace}px` }} />
     </div>
