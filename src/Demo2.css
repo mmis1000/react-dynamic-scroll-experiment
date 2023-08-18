@@ -20,6 +20,7 @@
     --height: 0;
 
     position: absolute;
+    z-index: 1;
     width: calc(100% / var(--cols));
     left: calc(100% / var(--cols) * var(--index));
     top: calc(1px * var(--top));

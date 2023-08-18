@@ -2,8 +2,8 @@ import { CSSProperties, ReactElement } from "react"
 import { DynamicScroll, DynamicChildElementProps, LoadHandler, DataBase } from "./DynamicScroll"
 import './Demo2.css'
 
-const COLS = 4
-const COUNT = 40
+const COLS = 8
+const COUNT = 100
 const DELAY = 100
 
 interface BoxCellBase {
@@ -31,7 +31,7 @@ interface BoxDef extends DataBase {
 }
 
 const getBoxHeight = () => {
-  return 15 + Math.random() * 85 * 2;
+  return 65 + Math.random() * 85;
 }
 
 const ROOT_BOX: BoxDef = {
