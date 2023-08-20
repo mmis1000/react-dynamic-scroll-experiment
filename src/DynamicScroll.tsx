@@ -42,6 +42,11 @@ export interface LoadHandler<Data extends DataBase> {
 interface DynamicScrollProps<Data extends DataBase> {
   prependSpace: number;
   appendSpace: number;
+  preloadRange?: number
+  /** Default unload range.  
+   * May be bumped if more content than expect loaded at once.  
+   * Because it would unload content after loaded instantly otherwise.
+   */
   maxLiveViewport?: number;
   onPrepend: LoadHandler<Data>;
   onAppend: LoadHandler<Data>;
@@ -68,12 +73,52 @@ const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
 
 const INTERATION_CHANGE_DELAY = 100;
 
+// const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
+//   if (entries.length === 0) {
+//     return [0, distance]
+//   }
+
+//   if (distance < 0) {
+//     return [entries[0]!.index, distance]
+//   }
+
+//   let currentOffset = distance
+
+//   for (let i = 0; i < entries.length; i++) {
+//     const height = getHeight(entries[i])
+//     if (currentOffset < height) {
+//       return [entries[i]!.index, currentOffset]
+//     }
+//     currentOffset -= height
+//   }
+
+//   const lastHeight = getHeight(entries[entries.length - 1])
+
+//   return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
+// }
+
+const getDistanceWithIndexAndOffset = (entries: DataEntry<DataBase>[], index: number, offset: number): number => {
+  if (entries.length === 0) {
+    return offset
+  }
+  let heightSum = 0
+  for (let i = 0; i < entries.length; i++) {
+    const currentIndex = entries[i].index
+    if (currentIndex === index) {
+      return heightSum + offset
+    }
+    heightSum += getHeight(entries[i])
+  }
+  throw new Error('invalid index ' + index)
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
 export const DynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
     maxLiveViewport = 2000,
+    // preloadRange = 1000,
     onAppend,
     onPrepend,
     className,
@@ -99,6 +144,9 @@ export const DynamicScroll = <T extends DataBase>(
   }, [prependSpace]);
 
   const scrollerRef = useRef<HTMLDivElement>();
+
+  // we don't want to unload content that we just loaded
+  // const minUnloadDistance = useRefState(0)
 
   useLayoutEffect(() => {
     if (scrollerRef.current) {
@@ -142,6 +190,7 @@ export const DynamicScroll = <T extends DataBase>(
             rootEl.style.overflow = "hidden";
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
+            console.log('flush stash ' + space)
           }
         }, hasInteractionBefore - now)
         return () => {
@@ -165,18 +214,52 @@ export const DynamicScroll = <T extends DataBase>(
     }
   }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
 
-  const onSizeUpdate = useCallback((height: number, index: number) => {
-    setDataStates(dataStates => dataStates.map((e) => {
+  const onSizeUpdateLatest = (height: number, index: number) => {
+    const targetIndex = dataStates.findIndex(i => i.index === currentBase) + 1
+    const targetBase = dataStates[targetIndex] != null ? dataStates[targetIndex].index : dataStates[targetIndex - 1].index
+    const targetOffset = dataStates[targetIndex] != null ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
+    const oldDistance = getDistanceWithIndexAndOffset(dataStates, targetBase, targetOffset)
+    const newStates = dataStates.map((e) => {
       if (e.index !== index) {
         return e;
       } else {
         return {
           ...e,
-          height,
+          size: height,
         };
       }
-    }));
-  }, [setDataStates]);
+    })
+    console.log(height, index, newStates, dataStates)
+    const newDistance = getDistanceWithIndexAndOffset(newStates, targetBase, targetOffset)
+    if (hasInteraction) {
+      console.log('stash change with ' + (newDistance - oldDistance))
+      setNegativeSpace(num => num + (newDistance - oldDistance))
+      setDataStates(newStates);
+    } else {
+      const space = negativeSpace + (newDistance - oldDistance)
+      console.log('offset by ' + space)
+      const rootEl = scrollerRef.current!
+      const old = rootEl.scrollTop;
+      flushSync(() => {
+        setDataStates(newStates);
+        setNegativeSpace(0)
+      })
+      rootEl.style.overflow = "hidden";
+      rootEl.scrollTop = old + space;
+      rootEl.style.overflow = "auto";
+
+    }
+  }
+
+  const onSizeUpdateRef = useRef(onSizeUpdateLatest)
+
+  useLayoutEffect(() => {
+    onSizeUpdateRef.current = onSizeUpdateLatest
+  })
+
+  const onSizeUpdate = useCallback((height: number, index: number) => {
+    onSizeUpdateRef.current(height, index)
+  }, []);
 
   const onInsert = useCallback(
     (
