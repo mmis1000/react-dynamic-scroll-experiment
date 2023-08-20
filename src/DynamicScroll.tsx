@@ -190,7 +190,7 @@ export const DynamicScroll = <T extends DataBase>(
             rootEl.style.overflow = "hidden";
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
-            console.log('flush stash ' + space)
+            // console.log('flush stash ' + space)
           }
         }, hasInteractionBefore - now)
         return () => {
@@ -229,15 +229,12 @@ export const DynamicScroll = <T extends DataBase>(
         };
       }
     })
-    console.log(height, index, newStates, dataStates)
     const newDistance = getDistanceWithIndexAndOffset(newStates, targetBase, targetOffset)
     if (hasInteraction) {
-      console.log('stash change with ' + (newDistance - oldDistance))
       setNegativeSpace(num => num + (newDistance - oldDistance))
       setDataStates(newStates);
     } else {
       const space = negativeSpace + (newDistance - oldDistance)
-      console.log('offset by ' + space)
       const rootEl = scrollerRef.current!
       const old = rootEl.scrollTop;
       flushSync(() => {
@@ -524,14 +521,14 @@ export const DynamicScroll = <T extends DataBase>(
     // console.log(item.index);
   };
 
-  const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {
-    console.log(ev)
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = () => {
+    // console.log(ev)
     setHasFocusedInteraction(true)
     setHasInteractionBefore(Infinity)
   }
 
-  const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = (ev) => {
-    console.log(ev)
+  const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = () => {
+    // console.log(ev)
     setHasFocusedInteraction(false)
     setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
   }
