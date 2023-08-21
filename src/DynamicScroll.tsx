@@ -64,9 +64,9 @@ const useRefState = <S,>(v: S | (() => S)) => {
 };
 
 
-const getIndex = <T extends DataBase>(en: DataEntry<T>) => {
-  return en.index;
-};
+// const getIndex = <T extends DataBase>(en: DataEntry<T>) => {
+//   return en.index;
+// };
 const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
   return en.size ?? en.data.initialHeight;
 };
@@ -97,6 +97,30 @@ const INTERATION_CHANGE_DELAY = 100;
 //   return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
 // }
 
+// const getIndexAndOffsetWithDistanceFromEnd = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
+//   if (entries.length === 0) {
+//     return [0, -distance]
+//   }
+
+//   if (distance < 0) {
+//     return [entries[entries.length - 1]!.index, -distance]
+//   }
+
+//   let currentOffset = distance
+
+//   for (let i = entries.length - 1; i >= 0; i--) {
+//     const height = getHeight(entries[i])
+//     if (currentOffset < height) {
+//       return [entries[i]!.index, height - currentOffset]
+//     }
+//     currentOffset -= height
+//   }
+
+//   const lastHeight = getHeight(entries[0])
+
+//   return [entries[entries.length - 1]!.index, lastHeight - (currentOffset + lastHeight)]
+// }
+
 const getDistanceWithIndexAndOffset = (entries: DataEntry<DataBase>[], index: number, offset: number): number => {
   if (entries.length === 0) {
     return offset
@@ -117,8 +141,8 @@ export const DynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
-    maxLiveViewport = 2000,
-    // preloadRange = 1000,
+    maxLiveViewport = 3000,
+    preloadRange = 1000,
     onAppend,
     onPrepend,
     className,
@@ -366,14 +390,14 @@ export const DynamicScroll = <T extends DataBase>(
   }
 
   const fetchNext =
-    dataStates.length === 0 || currentScroll + height >= heightSum;
+    dataStates.length === 0 || currentScroll + height >= heightSum - preloadRange;
   const fetchPrev =
+    !fetchNext &&
     dataStates.length > 1 &&
-    currentBase === getIndex(dataStates[0]) &&
-    currentOffset < 0;
+    currentScroll < preloadRange;
 
   const trimPrev = !(fetchNext || fetchPrev ) && currentScroll > maxLiveViewport 
-  const trimNext = !trimPrev && !(fetchNext || fetchPrev ) && heightSum - currentScroll > maxLiveViewport
+  const trimNext = !(trimPrev || fetchNext || fetchPrev ) && heightSum - currentScroll > maxLiveViewport
 
   const trimItemIndex = (trimPrev || trimNext) ? itemIndex : 0
   const trimOffset = (trimPrev || trimNext) ? currentOffset : 0
