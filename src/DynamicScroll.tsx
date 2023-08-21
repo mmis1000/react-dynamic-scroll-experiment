@@ -470,7 +470,7 @@ export const DynamicScroll = <T extends DataBase>(
     }
   }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum]);
 
-  const elements = dataStates.map((s) => s.el);
+  const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
 
   const onScroll: UIEventHandler<HTMLDivElement> = (ev) => {
     if (hasFocusedInteraction) {
