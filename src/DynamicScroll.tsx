@@ -231,8 +231,10 @@ export const DynamicScroll = <T extends DataBase>(
     })
     const newDistance = getDistanceWithIndexAndOffset(newStates, targetBase, targetOffset)
     if (hasInteraction) {
-      setNegativeSpace(num => num + (newDistance - oldDistance))
-      setDataStates(newStates);
+      flushSync(() => {
+        setNegativeSpace(num => num + (newDistance - oldDistance))
+        setDataStates(newStates);
+      })
     } else {
       const space = negativeSpace + (newDistance - oldDistance)
       const rootEl = scrollerRef.current!
