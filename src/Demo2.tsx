@@ -171,7 +171,7 @@ export function Demo2 ({
             } as unknown as CSSProperties}
             key={index}
           >
-            ITEM
+            ITEM {prevBox.index}
           </div> : null).filter(i => i != null)}
         </div>, prevBox])
       }
@@ -203,7 +203,7 @@ export function Demo2 ({
             } as unknown as CSSProperties}
             key={index}
           >
-            ITEM
+            ITEM {nextBox.index}
           </div> : null).filter(i => i != null)}
         </div>, nextBox])
       }
