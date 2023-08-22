@@ -26,6 +26,7 @@ interface DataEntry<T extends DataBase> {
 
 interface DynamicChildProps {
   onSizeUpdate: (newHeight: number, index: number) => void;
+  resizeRef: (el: HTMLElement | null, index: number) => void
 }
 
 export interface DynamicChildElementProps {}
@@ -403,13 +404,75 @@ export const DynamicScroll = <T extends DataBase>(
   const trimOffset = (trimPrev || trimNext) ? currentOffset : 0
   const trimHasInteraction = (trimPrev || trimNext) ? hasInteraction : false
 
+  const [observer, setObserver] = useState<ResizeObserver>()
+  const [entries, setEntries] = useState<[el: HTMLElement, index: number][]>([])
+
+  const observerHandlerCurrent: ResizeObserverCallback = (eventEntries) => {
+    for (const ee of eventEntries) {
+      const item = entries.find(e => e[0] === ee.target)
+      if (item != null) {
+        onSizeUpdate(ee.contentRect.height, item[1])
+      }
+    }
+  }
+
+  const observerHandlerRef = useRef(observerHandlerCurrent)
+  useLayoutEffect(() => {
+    observerHandlerRef.current = observerHandlerCurrent
+  })
+
+  const observerHandler: ResizeObserverCallback = useCallback((entries, observer) => {
+    observerHandlerRef.current?.(entries, observer)
+  }, [])
+
+
+  useEffect(() => {
+    const newObserver = new ResizeObserver(observerHandler)
+    setObserver(newObserver)
+    return () => {
+      newObserver.disconnect()
+    }
+  }, [observerHandler])
+
+
+  useEffect(() => {
+    if (observer == null) {
+      return
+    }
+
+    for (const [el] of entries) {
+      observer.observe(el)
+    }
+
+    return () => {
+      for (const [el] of entries) {
+        observer.unobserve(el)
+      }
+    }
+  }, [entries, observer])
+
+  const resizeRef = useCallback((el: HTMLElement | null, index: number) => {
+    setEntries((entries) => {
+      const entryIndex = entries.findIndex(e => e[1] === index)
+      if (el) {
+        if (entryIndex >= 0) {
+          return [...entries.slice(0, entryIndex), [el, index], ...entries.slice(index + 1)]
+        } else {
+          return [...entries.slice(0), [el, index]]
+        }
+      } else {
+        return entries.filter(i => i[1] !== index)
+      }
+    })
+  }, [])
+
   useEffect(() => {
     if (fetchNext) {
       const controller = new AbortController();
       const signal = controller.signal;
       const lastIndex = dataStates[dataStates.length - 1]?.index;
       const index = lastIndex ? lastIndex : -1;
-      const p = onAppend(index, { onSizeUpdate }, dataStates, signal);
+      const p = onAppend(index, { onSizeUpdate, resizeRef }, dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("next", entries));
       return () => {
         controller.abort();
@@ -418,7 +481,7 @@ export const DynamicScroll = <T extends DataBase>(
       const controller = new AbortController();
       const signal = controller.signal;
       const index = dataStates[0]?.index ?? 0;
-      const p = onPrepend(index, { onSizeUpdate }, dataStates, signal);
+      const p = onPrepend(index, { onSizeUpdate, resizeRef }, dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("prev", entries));
       return () => {
         controller.abort();
@@ -492,7 +555,7 @@ export const DynamicScroll = <T extends DataBase>(
         clearTimeout(id)
       }
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum]);
+  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef]);
 
   const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
 
