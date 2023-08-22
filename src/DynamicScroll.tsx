@@ -40,6 +40,9 @@ export interface LoadHandler<Data extends DataBase> {
   ): Promise<[ReactElement<DynamicChildElementProps>, Data][]>;
 }
 
+export interface AnchorSelector<Data extends DataBase> {
+  (partialEntries: DataEntry<Data>[], index: number, offset: number, containerHeight: number, lastTouchPosition: number): [index: number, offset: number]
+}
 interface DynamicScrollProps<Data extends DataBase> {
   prependSpace: number;
   appendSpace: number;
@@ -53,6 +56,7 @@ interface DynamicScrollProps<Data extends DataBase> {
   onAppend: LoadHandler<Data>;
   className?: string,
   style?: CSSProperties,
+  onSelectAnchor?: AnchorSelector<Data>
 }
 
 const useRefState = <S,>(v: S | (() => S)) => {
@@ -147,6 +151,7 @@ export const DynamicScroll = <T extends DataBase>(
     onAppend,
     onPrepend,
     className,
+    onSelectAnchor,
     style
   }: DynamicScrollProps<T>
 ) => {
@@ -169,6 +174,8 @@ export const DynamicScroll = <T extends DataBase>(
   }, [prependSpace]);
 
   const scrollerRef = useRef<HTMLDivElement>();
+
+  const lastInteractPosition = useRef(0)
 
   // we don't want to unload content that we just loaded
   // const minUnloadDistance = useRefState(0)
@@ -239,18 +246,25 @@ export const DynamicScroll = <T extends DataBase>(
     }
   }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
 
-  const onSizeUpdateLatest = (height: number, index: number) => {
+  const onSizeUpdateLatest = (newObjectHeight: number, index: number) => {
     const targetIndex = dataStates.findIndex(i => i.index === currentBase) + 1
-    const targetBase = dataStates[targetIndex] != null ? dataStates[targetIndex].index : dataStates[targetIndex - 1].index
-    const targetOffset = dataStates[targetIndex] != null ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
+    const targetBase = dataStates[targetIndex] != null && currentOffset !== 0 ? dataStates[targetIndex].index : currentBase
+    const targetOffset = dataStates[targetIndex] != null && currentOffset !== 0 ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
+    const res = onSelectAnchor?.(dataStates, targetIndex, targetBase, height, lastInteractPosition.current)
+    console.log(res)
     const oldDistance = getDistanceWithIndexAndOffset(dataStates, targetBase, targetOffset)
+    const oldEntry = dataStates.find(i => i.index === index)
+    if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
+      console.log('skip size update for index ' + index + ' because not changed')
+      return
+    }
     const newStates = dataStates.map((e) => {
       if (e.index !== index) {
         return e;
       } else {
         return {
           ...e,
-          size: height,
+          size: newObjectHeight,
         };
       }
     })
@@ -610,10 +624,22 @@ export const DynamicScroll = <T extends DataBase>(
     // console.log(item.index);
   };
 
-  const onTouchStart: TouchEventHandler<HTMLDivElement> = () => {
+  const onTouchMove: TouchEventHandler<HTMLDivElement> = (ev) => {
+    const baseY = ev.currentTarget.getBoundingClientRect().top
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
+  }
+  const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {
     // console.log(ev)
     setHasFocusedInteraction(true)
     setHasInteractionBefore(Infinity)
+    const baseY = ev.currentTarget.getBoundingClientRect().top
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
+  }
+  const onTouchEnd: TouchEventHandler<HTMLDivElement> = (ev) => {
+    // console.log(ev)
+    stopInteractionShortly(ev)
+    const baseY = ev.currentTarget.getBoundingClientRect().top
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
   }
 
   const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = () => {
@@ -624,7 +650,7 @@ export const DynamicScroll = <T extends DataBase>(
 
 
   return (
-    <div ref={onRefed} style={style} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchEnd={stopInteractionShortly}>
+    <div ref={onRefed} style={style} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       <div style={{ height: `${prependSpace}px` }} />
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
