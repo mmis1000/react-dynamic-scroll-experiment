@@ -248,10 +248,11 @@ export const DynamicScroll = <T extends DataBase>(
 
   const onSizeUpdateLatest = (newObjectHeight: number, index: number) => {
     const targetIndex = dataStates.findIndex(i => i.index === currentBase) + 1
-    const targetBase = dataStates[targetIndex] != null && currentOffset !== 0 ? dataStates[targetIndex].index : currentBase
-    const targetOffset = dataStates[targetIndex] != null && currentOffset !== 0 ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
-    const res = onSelectAnchor?.(dataStates, targetIndex, targetBase, height, lastInteractPosition.current)
-    console.log(res)
+    const originalTargetBase = dataStates[targetIndex] != null && currentOffset !== 0 ? dataStates[targetIndex].index : currentBase
+    const originalTargetOffset = dataStates[targetIndex] != null && currentOffset !== 0 ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
+    const selectorRes = onSelectAnchor?.(dataStates, originalTargetBase, originalTargetOffset, height, lastInteractPosition.current)
+    const targetBase = selectorRes?.[0] ?? originalTargetBase
+    const targetOffset = selectorRes?.[1] ?? originalTargetOffset
     const oldDistance = getDistanceWithIndexAndOffset(dataStates, targetBase, targetOffset)
     const oldEntry = dataStates.find(i => i.index === index)
     if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
