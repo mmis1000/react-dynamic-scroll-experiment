@@ -78,29 +78,29 @@ export const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
 
 const INTERATION_CHANGE_DELAY = 100;
 
-// const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
-//   if (entries.length === 0) {
-//     return [0, distance]
-//   }
+const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
+  if (entries.length === 0) {
+    return [0, distance]
+  }
 
-//   if (distance < 0) {
-//     return [entries[0]!.index, distance]
-//   }
+  if (distance < 0) {
+    return [entries[0]!.index, distance]
+  }
 
-//   let currentOffset = distance
+  let currentOffset = distance
 
-//   for (let i = 0; i < entries.length; i++) {
-//     const height = getHeight(entries[i])
-//     if (currentOffset < height) {
-//       return [entries[i]!.index, currentOffset]
-//     }
-//     currentOffset -= height
-//   }
+  for (let i = 0; i < entries.length; i++) {
+    const height = getHeight(entries[i])
+    if (currentOffset < height) {
+      return [entries[i]!.index, currentOffset]
+    }
+    currentOffset -= height
+  }
 
-//   const lastHeight = getHeight(entries[entries.length - 1])
+  const lastHeight = getHeight(entries[entries.length - 1])
 
-//   return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
-// }
+  return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
+}
 
 // const getIndexAndOffsetWithDistanceFromEnd = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
 //   if (entries.length === 0) {
@@ -247,18 +247,20 @@ export const DynamicScroll = <T extends DataBase>(
   }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
 
   const onSizeUpdateLatest = (newObjectHeight: number, index: number) => {
+    const oldEntry = dataStates.find(i => i.index === index)
+    if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
+      console.log('skip size update for index ' + index + ' because not changed')
+      return
+    }
+
     const targetIndex = dataStates.findIndex(i => i.index === currentBase) + 1
     const originalTargetBase = dataStates[targetIndex] != null && currentOffset !== 0 ? dataStates[targetIndex].index : currentBase
     const originalTargetOffset = dataStates[targetIndex] != null && currentOffset !== 0 ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
     const selectorRes = onSelectAnchor?.(dataStates, originalTargetBase, originalTargetOffset, height, lastInteractPosition.current)
     const targetBase = selectorRes?.[0] ?? originalTargetBase
     const targetOffset = selectorRes?.[1] ?? originalTargetOffset
+    const oldScrollDistance = getDistanceWithIndexAndOffset(dataStates, currentBase, currentOffset)
     const oldDistance = getDistanceWithIndexAndOffset(dataStates, targetBase, targetOffset)
-    const oldEntry = dataStates.find(i => i.index === index)
-    if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
-      console.log('skip size update for index ' + index + ' because not changed')
-      return
-    }
     const newStates = dataStates.map((e) => {
       if (e.index !== index) {
         return e;
@@ -270,10 +272,14 @@ export const DynamicScroll = <T extends DataBase>(
       }
     })
     const newDistance = getDistanceWithIndexAndOffset(newStates, targetBase, targetOffset)
+    const [newBase, newOffset] = getIndexAndOffsetWithDistance(newStates, oldScrollDistance + newDistance - oldDistance)
+
     if (hasInteraction) {
       flushSync(() => {
         setNegativeSpace(num => num + (newDistance - oldDistance))
         setDataStates(newStates);
+        setCurrentBase(newBase);
+        setCurrentOffset(newOffset);
       })
     } else {
       const space = negativeSpace + (newDistance - oldDistance)
@@ -281,7 +287,9 @@ export const DynamicScroll = <T extends DataBase>(
       const old = rootEl.scrollTop;
       flushSync(() => {
         setDataStates(newStates);
-        setNegativeSpace(0)
+        setNegativeSpace(0);
+        setCurrentBase(newBase);
+        setCurrentOffset(newOffset);
       })
       rootEl.style.overflow = "hidden";
       rootEl.scrollTop = old + space;
