@@ -11,11 +11,11 @@ function App() {
   return (
     <div className="App">
       <div className="menu">
-        <button onClick={() => setCurrentDemo('demo1')}>App1</button>
-        <button onClick={() => setCurrentDemo('demo2')}>App2</button>
-        <button onClick={() => setCurrentDemo('demo3')}>App3</button>
-        <button onClick={() => setCurrentDemo('demo4')}>App4</button>
-        <button onClick={() => setCurrentDemo('demo5')}>App5</button>
+        <button onClick={() => setCurrentDemo('demo1')}>Simple</button>
+        <button onClick={() => setCurrentDemo('demo2')}>Waterfall</button>
+        <button onClick={() => setCurrentDemo('demo3')}>Manual resize callback</button>
+        <button onClick={() => setCurrentDemo('demo4')}>Resize observer based resize</button>
+        <button onClick={() => setCurrentDemo('demo5')}>Touch aware scroll anchor</button>
       </div>
       {currentDemo === 'demo1' && <Demo1 className="content" />}
       {currentDemo === 'demo2' && <Demo2 className="content" />}

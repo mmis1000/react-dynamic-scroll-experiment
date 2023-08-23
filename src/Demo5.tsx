@@ -59,13 +59,12 @@ export function Demo5 ({
           style={{background: `hsl(${color}deg 30% 60%)`}}
           key={index - i - 1}
           initialHeight={height}
-          newHeight={(index - i - 1) % 5 === 0 ? height + 100 : height}
+          newHeight={height + 50}
           delay={5000}
           ref={(el) => _props.resizeRef(el, index - i - 1)}
         >
           index: {index - i - 1} <br/>
           height: {height}
-          {(index - i - 1) % 5 === 0 ? 'will resize' : ''}
         </ResizedElement>, { index: index - i - 1, initialHeight: height }])
       }
       return arr
@@ -82,13 +81,12 @@ export function Demo5 ({
           style={{background: `hsl(${color}deg 30% 60%)`}}
           key={index + i + 1}
           initialHeight={height}
-          newHeight={(index + i + 1) % 5 === 0 ? height + 100 : height}
+          newHeight={height + 50}
           delay={5000}
           ref={(el) => _props.resizeRef(el, index + i + 1)}
         >
           index: {index + i + 1} <br/>
           height: {height}
-          {(index + i + 1) % 5 === 0 ? 'will resize' : ''}
         </ResizedElement>, { index: index + i + 1, initialHeight: height }])
       }
       return arr

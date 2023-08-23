@@ -13,4 +13,9 @@
     align-items: center;
     gap: 16px;
     padding: 0 16px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+}
+.App > .menu > * {
+    flex: 0 0 auto;
 }
