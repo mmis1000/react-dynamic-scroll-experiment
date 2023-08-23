@@ -4,9 +4,10 @@ import { Demo1 } from "./Demo1";
 import { Demo2 } from "./Demo2";
 import { Demo3 } from "./Demo3";
 import { Demo4 } from "./Demo4";
+import { Demo5 } from "./Demo5";
 
 function App() {
-  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4'>('demo1')
+  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5'>('demo1')
   return (
     <div className="App">
       <div className="menu">
@@ -14,11 +15,13 @@ function App() {
         <button onClick={() => setCurrentDemo('demo2')}>App2</button>
         <button onClick={() => setCurrentDemo('demo3')}>App3</button>
         <button onClick={() => setCurrentDemo('demo4')}>App4</button>
+        <button onClick={() => setCurrentDemo('demo5')}>App5</button>
       </div>
       {currentDemo === 'demo1' && <Demo1 className="content" />}
       {currentDemo === 'demo2' && <Demo2 className="content" />}
       {currentDemo === 'demo3' && <Demo3 className="content" />}
       {currentDemo === 'demo4' && <Demo4 className="content" />}
+      {currentDemo === 'demo5' && <Demo5 className="content" />}
     </div>
   );
 }

@@ -72,7 +72,7 @@ const useRefState = <S,>(v: S | (() => S)) => {
 // const getIndex = <T extends DataBase>(en: DataEntry<T>) => {
 //   return en.index;
 // };
-const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
+export const getHeight =  <T extends DataBase>(en: DataEntry<T>) => {
   return en.size ?? en.data.initialHeight;
 };
 
