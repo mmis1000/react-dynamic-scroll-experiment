@@ -249,7 +249,6 @@ export const DynamicScroll = <T extends DataBase>(
   const onSizeUpdateLatest = (newObjectHeight: number, index: number) => {
     const oldEntry = dataStates.find(i => i.index === index)
     if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
-      console.log('skip size update for index ' + index + ' because not changed')
       return
     }
 

@@ -108,13 +108,10 @@ export function Demo5 ({
           currentSelection = nextSelection
           currentOffset = nextOffset
           currentShortestDist = nextShortestDist
-          console.log(currentOffset + lastTouchPosition)
         } else {
-          console.log('break at', nextSelection, nextOffset, nextShortestDist)
           break
         }
       }
-      console.log(index, offset, currentSelection, currentOffset, currentShortestDist)
       return [currentSelection, currentOffset, ]
     }
   
