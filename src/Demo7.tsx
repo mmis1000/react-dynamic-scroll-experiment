@@ -57,7 +57,7 @@ export function Demo7 ({
       if (index >= MAX_INDEX) {
         return END_OF_STREAM
       }
-      for (let i = 0; i < COUNT && (index + i + 1) <=MAX_INDEX; i++) {
+      for (let i = 0; i < COUNT && (index + i + 1) <= MAX_INDEX; i++) {
         const height = 400
         const color = ~~(360 * Math.random())
         arr.push([<ResizedElement
@@ -96,5 +96,5 @@ export function Demo7 ({
       return [currentSelection, currentOffset, ]
     }
   
-    return <DynamicScroll className={className} prependSpace={5000} appendSpace={5000} onPrepend={onPrepend} onAppend={onAppend} onSelectAnchor={onSelectAnchor}/>
+    return <DynamicScroll className={className} prependSpace={5000} appendSpace={0} onPrepend={onPrepend} onAppend={onAppend} onSelectAnchor={onSelectAnchor}/>
 }

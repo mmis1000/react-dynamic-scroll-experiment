@@ -69,11 +69,6 @@ const useRefState = <S,>(v: S | (() => S)) => {
   return [state, setState, ref] as const;
 };
 
-
-// const getIndex = <T extends DataBase>(en: DataEntry<T>) => {
-//   return en.index;
-// };
-
 const INTERATION_CHANGE_DELAY = 100;
 
 const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
@@ -120,7 +115,7 @@ export const DynamicScroll = <T extends DataBase>(
   {
     prependSpace,
     appendSpace,
-    maxLiveViewport = 3000,
+    maxLiveViewport: maxLiveViewportProp = 3000,
     preloadRange = 1000,
     onAppend,
     onPrepend,
@@ -132,6 +127,9 @@ export const DynamicScroll = <T extends DataBase>(
   const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
     []
   );
+
+  const [minMaxLiveViewport, setMinMaxLiveViewport] = useState(0)
+  const maxLiveViewport = Math.max(maxLiveViewportProp, minMaxLiveViewport)
 
   const [currentBase, setCurrentBase, currentBaseRef] = useRefState<number>(0);
   const [currentOffset, setCurrentOffset, currentOffsetRef] =
@@ -174,8 +172,6 @@ export const DynamicScroll = <T extends DataBase>(
     }
     
   }, []);
-
-  // const [fetchState, setFetchState] = useState<State>({ state: "init" });
 
   const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -376,6 +372,8 @@ export const DynamicScroll = <T extends DataBase>(
           setCurrentBase(entries[target][1].index);
           setCurrentOffset(newOffset);
         }
+
+        setMinMaxLiveViewport(heightSum + preloadRange)
       });
       // debugger
       if (position === "prev") {
@@ -421,7 +419,7 @@ export const DynamicScroll = <T extends DataBase>(
     currentScroll < preloadRange;
 
   const trimPrev = !(fetchNext || fetchPrev ) && currentScroll > maxLiveViewport 
-  const trimNext = !(trimPrev || fetchNext || fetchPrev ) && heightSum - currentScroll > maxLiveViewport
+  const trimNext = !(trimPrev || fetchNext || fetchPrev ) && heightSum - currentScroll - height > maxLiveViewport
 
   const trimItemIndex = (trimPrev || trimNext) ? itemIndex : 0
   const trimOffset = (trimPrev || trimNext) ? currentOffset : 0
