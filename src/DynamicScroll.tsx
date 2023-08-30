@@ -413,8 +413,9 @@ export const DynamicScroll = <T extends DataBase>(
   }
 
   const fetchNext =
-    dataStates.length === 0 || currentScroll + height >= heightSum - preloadRange;
+    !footEnded && (dataStates.length === 0 || currentScroll + height >= heightSum - preloadRange);
   const fetchPrev =
+    !headEnded &&
     !fetchNext &&
     dataStates.length > 1 &&
     currentScroll < preloadRange;
