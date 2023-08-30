@@ -493,7 +493,7 @@ export const DynamicScroll = <T extends DataBase>(
       const controller = new AbortController();
       const signal = controller.signal;
       const lastIndex = dataStates[dataStates.length - 1]?.index;
-      const index = lastIndex ? lastIndex : -1;
+      const index = lastIndex != null ? lastIndex : -1;
       const p = onAppend(index, { onSizeUpdate, resizeRef }, dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("next", entries));
       return () => {
