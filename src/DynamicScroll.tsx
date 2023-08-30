@@ -294,16 +294,24 @@ export const DynamicScroll = <T extends DataBase>(
           setFootEnded(true)
         }
         if (position === 'prev' && !headEndedRef.current) {
+          const needScrollCorrection = currentOffsetRef.current < 0 && currentBaseRef.current === dataStates[0]?.index
           if (hasInteractionRef.current) {
             flushSync(() => {
               setHeadEnded(true)
               setNegativeSpace(val => val - prependSpace)
+              if (needScrollCorrection) {
+                setCurrentOffset(0)
+              }
             })
           } else {
             const old = rootEl.scrollTop;
             flushSync(() => {
               setHeadEnded(true)
+              if (needScrollCorrection) {
+                setCurrentOffset(0)
+              }
             })
+            // overscroll
             rootEl.scrollTop = old - prependSpace;
           }
         }
