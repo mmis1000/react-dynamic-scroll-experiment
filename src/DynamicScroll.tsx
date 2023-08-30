@@ -389,7 +389,7 @@ export const DynamicScroll = <T extends DataBase>(
         }
       }
     },
-    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
+    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
   );
 
   // calculate whether we need to fetch more
@@ -527,7 +527,13 @@ export const DynamicScroll = <T extends DataBase>(
           length = newLength
         }
 
+        // we cannot remove everything
+        if (removeUntil === dataStates.length) {
+          removeUntil--
+        }
+
         let extraTrim = 0
+    
         if (headEnded) {
           extraTrim = -prependSpace
         }
@@ -581,6 +587,12 @@ export const DynamicScroll = <T extends DataBase>(
           }
           removeAfter = i
           length = newLength
+        }
+        
+
+        // we cannot remove everything
+        if (removeAfter === 0) {
+          removeAfter = 1
         }
         if (footEnded) {
           setFootEnded(false)
