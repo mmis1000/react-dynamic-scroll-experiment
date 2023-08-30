@@ -1,6 +1,7 @@
 import { CSSProperties, ReactElement, ReactNode, forwardRef } from "react"
-import { DynamicScroll, DynamicChildElementProps, LoadHandler, AnchorSelector, getHeight } from "./DynamicScroll"
+import { DynamicScroll, DynamicChildElementProps, LoadHandler, AnchorSelector } from "./DynamicScroll"
 import './Demo6.css'
+import { getHeight } from "./DynamicScrollUtils"
 
 const COUNT = 8
 const DELAY = 200
