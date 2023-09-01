@@ -294,7 +294,7 @@ export const DynamicScroll = <T extends DataBase>(
           setFootEnded(true)
         }
         if (position === 'prev' && !headEndedRef.current) {
-          const needScrollCorrection = currentOffsetRef.current < 0 && currentBaseRef.current === dataStates[0]?.index
+          const needScrollCorrection = currentOffsetRef.current < 0 && currentBaseRef.current === dataStateRef.current[0]?.index
           if (hasInteractionRef.current) {
             flushSync(() => {
               setHeadEnded(true)
