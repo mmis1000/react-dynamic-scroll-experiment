@@ -136,13 +136,17 @@ export const DynamicScroll = <T extends DataBase>(
     useRefState<number>(0);
 
   // height detection
-  const [height, setHeight] = useState(0);
+  const [height, setHeight, heightRef] = useRefState(0);
 
   const [headEnded, setHeadEnded, headEndedRef] = useRefState(false)
   const [footEnded, setFootEnded, footEndedRef] = useRefState(false)
 
+  const heightSum = dataStates
+    .map((i) => i.size ?? i.data.initialHeight)
+    .reduce((p, v) => p + v, 0);
+
   const currentPrependSpace = headEnded ? 0 : prependSpace
-  const currentAppendSpace = footEnded ? 0 : appendSpace
+  const currentAppendSpace = footEnded ? 0 : heightSum < height ? Math.max(appendSpace, height) : appendSpace
 
   const onRefed = useCallback((el: HTMLDivElement) => {
     if (el) {
@@ -171,7 +175,7 @@ export const DynamicScroll = <T extends DataBase>(
       }
     }
     
-  }, []);
+  }, [setHeight]);
 
   const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -288,7 +292,11 @@ export const DynamicScroll = <T extends DataBase>(
       position: "prev" | "next",
       entries: [el: ReactElement<DynamicChildElementProps>, data: T][] | typeof END_OF_STREAM
     ) => {
+
       const rootEl = scrollerRef.current!;
+      const initialHeightSum = dataStateRef.current.reduce((prev, curr) => getHeight(curr) + prev , 0)
+      const isInitialInsert = initialHeightSum < heightRef.current
+
       if (entries === END_OF_STREAM) {
         if (position === 'next' && !footEndedRef.current) {
           setFootEnded(true)
@@ -383,6 +391,15 @@ export const DynamicScroll = <T extends DataBase>(
 
         setMinMaxLiveViewport(heightSum + preloadRange)
       });
+
+
+      if (position === "next" && isInitialInsert) {
+        // we may have a wrong scroll if append space is 0
+        // so we force set here
+
+        flushSync(() => {})
+        rootEl.scrollTop = prependSpace
+      }
       // debugger
       if (position === "prev") {
         if (hasInteractionRef.current) {
@@ -397,14 +414,11 @@ export const DynamicScroll = <T extends DataBase>(
         }
       }
     },
-    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
+    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, heightRef, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
   );
 
   // calculate whether we need to fetch more
 
-  const heightSum = dataStates
-    .map((i) => i.size ?? i.data.initialHeight)
-    .reduce((p, v) => p + v, 0);
   let currentScroll = 0;
 
   let itemIndex: number = -1
@@ -496,6 +510,11 @@ export const DynamicScroll = <T extends DataBase>(
   }, [])
 
   useEffect(() => {
+    if (height === 0) {
+      // not loaded yet
+      return
+    }
+
     if (fetchNext) {
       const controller = new AbortController();
       const signal = controller.signal;
@@ -612,7 +631,7 @@ export const DynamicScroll = <T extends DataBase>(
         clearTimeout(id)
       }
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded]);
+  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height]);
 
   const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
 

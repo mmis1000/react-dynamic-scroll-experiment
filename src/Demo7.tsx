@@ -96,5 +96,5 @@ export function Demo7 ({
       return [currentSelection, currentOffset, ]
     }
   
-    return <DynamicScroll className={className} prependSpace={5000} appendSpace={0} onPrepend={onPrepend} onAppend={onAppend} onSelectAnchor={onSelectAnchor}/>
+    return <DynamicScroll className={className} prependSpace={0} appendSpace={0} onPrepend={onPrepend} onAppend={onAppend} onSelectAnchor={onSelectAnchor}/>
 }
