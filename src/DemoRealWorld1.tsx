@@ -203,8 +203,8 @@ export function DemoRealWorld1({ className }: { className?: string }) {
   return (
     <DynamicScroll
       className={className ? 'real ' + className : 'real'}
-      prependSpace={1000}
-      appendSpace={1000}
+      prependSpace={3000}
+      appendSpace={3000}
       preloadRange={3000}
       prependContent="Loading..."
       appendContent="Loading..."
