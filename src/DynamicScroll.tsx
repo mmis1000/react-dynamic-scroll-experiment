@@ -217,6 +217,8 @@ export const DynamicScroll = <T extends DataBase>(
             rootEl.style.overflow = "hidden";
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
+            // FIXME: safari scroll workaround
+            rootEl.scrollTo({ top: old + space + 1, behavior: 'smooth' })
             // console.log('flush stash ' + space)
           }
         }, hasInteractionBefore - now)
@@ -237,6 +239,8 @@ export const DynamicScroll = <T extends DataBase>(
         rootEl.style.overflow = "hidden";
         rootEl.scrollTop = old + space;
         rootEl.style.overflow = "auto";
+        // FIXME: safari scroll workaround
+        rootEl.scrollTo({ top: old + space + 1, behavior: 'smooth' })
       }
     }
   }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
@@ -684,6 +688,8 @@ export const DynamicScroll = <T extends DataBase>(
         ev.currentTarget.style.overflow = 'hidden'
         ev.currentTarget.scrollTop = 0
         ev.currentTarget.style.overflow = 'auto'
+        // FIXME: safari scroll workaround
+        ev.currentTarget.scrollTo({ top: 1, behavior: 'smooth' })
         return
       }
       setCurrentOffset(offset);
