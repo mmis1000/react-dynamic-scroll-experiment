@@ -10,9 +10,10 @@ import { Demo7 } from "./Demo7";
 import { Demo8 } from "./Demo8";
 import { Demo9 } from "./Demo9";
 import { Demo10 } from "./Demo10";
+import { DemoRealWorld1 } from "./DemoRealWorld1";
 
 function App() {
-  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5' | 'demo6' | 'demo7' | 'demo8' | 'demo9' | 'demo10'>('demo1')
+  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5' | 'demo6' | 'demo7' | 'demo8' | 'demo9' | 'demo10' | 'demor1'>('demo1')
   return (
     <div className="App">
       <div className="menu">
@@ -26,6 +27,7 @@ function App() {
         <button onClick={() => setCurrentDemo('demo8')}>Fixed end with loading</button>
         <button onClick={() => setCurrentDemo('demo9')}>Fixed end started at end</button>
         <button onClick={() => setCurrentDemo('demo10')}>Fixed end started at start</button>
+        <button onClick={() => setCurrentDemo('demor1')}>real world</button>
       </div>
       {currentDemo === 'demo1' && <Demo1 className="content" />}
       {currentDemo === 'demo2' && <Demo2 className="content" />}
@@ -37,6 +39,7 @@ function App() {
       {currentDemo === 'demo8' && <Demo8 className="content" />}
       {currentDemo === 'demo9' && <Demo9 className="content" />}
       {currentDemo === 'demo10' && <Demo10 className="content" />}
+      {currentDemo === 'demor1' && <DemoRealWorld1 className="content" />}
     </div>
   );
 }
