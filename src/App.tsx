@@ -13,7 +13,16 @@ import { Demo10 } from "./Demo10";
 import { DemoRealWorld1 } from "./DemoRealWorld1";
 
 function App() {
-  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5' | 'demo6' | 'demo7' | 'demo8' | 'demo9' | 'demo10' | 'demor1'>('demo1')
+  const url = new URL(location.href)
+  const tabId = url.searchParams.get('tab')
+  let initialTab: `demo${string}`
+  if (tabId?.startsWith('demo')) {
+    initialTab = tabId as `demo${string}`
+  } else {
+    initialTab = 'demo1'
+  }
+
+  const [currentDemo, setCurrentDemo] = useState<`demo${string}`>(initialTab)
   return (
     <div className="App">
       <div className="menu">

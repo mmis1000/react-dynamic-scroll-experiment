@@ -1,4 +1,4 @@
-import { CSSProperties, ReactNode, forwardRef } from "react";
+import { CSSProperties, ReactNode, forwardRef, useRef } from "react";
 import {
   DynamicScroll,
   LoadHandler,
@@ -59,6 +59,11 @@ const ImageElement = forwardRef<
 });
 
 export function DemoRealWorld1({ className }: { className?: string }) {
+  const url = new URL(location.href)
+  const initialPageStr = url.searchParams.get('page') ?? '1'
+  const initialPageParsed = /\d+/.test(initialPageStr) ? Number(initialPageStr) : 1
+  const initialPageRefed = useRef(initialPageParsed)
+  
   const onPrepend: LoadHandler<Data> = async (index, _props, data, _signal) => {
     const next = data[0]
 
@@ -94,7 +99,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         ref={(el) => _props.resizeRef(el, index - arr.length + index2)}
       >
         <img src={data.src.medium} style={{width: '100%'}} />
-        <div className="index">{index - arr.length + index2}</div>
+        <div className="index">page {page}, {index2 + 1}/{pageSize}</div>
         <div className="caption">{data.alt}</div>
         <a className="author" href={data.photographer_url} target="_blank">{data.photographer}</a>
       </ImageElement>,
@@ -118,11 +123,12 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     let baseItemIndex: number
 
     if (prev == null) {
-      const { photos } = await getData(_signal, 1, COUNT)
-      items = photos
-      page = 1
+      page = initialPageRefed.current
       pageSize = COUNT
       baseItemIndex = 0
+
+      const { photos } = await getData(_signal, page, COUNT)
+      items = photos
     } else if (prev.data.itemIndex !== prev.data.pageSize - 1) {
       items = prev.data.items.slice(prev.data.itemIndex + 1)
       page = prev.data.page
@@ -150,7 +156,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         ref={(el) => _props.resizeRef(el, index + 1 + index2)}
       >
         <img src={data.src.medium} style={{width: '100%'}} />
-        <div className="index">{index + 1 + index2}</div>
+        <div className="index">page {page}, {baseItemIndex + index2 + 1}/{pageSize}</div>
         <div className="caption">{data.alt}</div>
         <a className="author" href={data.photographer_url} target="_blank">{data.photographer}</a>
       </ImageElement>,
