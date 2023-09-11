@@ -76,6 +76,9 @@ export function Demo7 ({
     const onSelectAnchor: AnchorSelector<{ index: number, initialHeight: number }> = (entries, index, offset, containerHeight, lastTouchPosition) => {
       console.log(entries, index, offset, containerHeight, lastTouchPosition)
       const rootItemArrayIndex = entries.findIndex(e => e.index === index)
+      if (rootItemArrayIndex < 0) {
+        return [index, offset];
+      }
       let currentSelection = index
       let currentOffset = offset
       let currentShortestDist = Math.abs(offset + lastTouchPosition)

@@ -1,6 +1,7 @@
 import {
   CSSProperties,
   ReactElement,
+  ReactNode,
   TouchEventHandler,
   UIEventHandler,
   useCallback,
@@ -57,6 +58,8 @@ interface DynamicScrollProps<Data extends DataBase> {
   onAppend: LoadHandler<Data>;
   className?: string,
   style?: CSSProperties,
+  prependContent?: ReactNode,
+  appendContent?: ReactNode,
   onSelectAnchor?: AnchorSelector<Data>
 }
 
@@ -107,7 +110,9 @@ const getDistanceWithIndexAndOffset = (entries: DataEntry<DataBase>[], index: nu
     }
     heightSum += getHeight(entries[i])
   }
-  throw new Error('invalid index ' + index)
+  // it can happen if the scroll started at end with 0 items already appended
+  return 0
+  // throw new Error('invalid index ' + index)
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
@@ -119,6 +124,8 @@ export const DynamicScroll = <T extends DataBase>(
     preloadRange = 1000,
     onAppend,
     onPrepend,
+    prependContent,
+    appendContent,
     className,
     onSelectAnchor,
     style
@@ -146,7 +153,7 @@ export const DynamicScroll = <T extends DataBase>(
     .reduce((p, v) => p + v, 0);
 
   const currentPrependSpace = headEnded ? 0 : prependSpace
-  const currentAppendSpace = footEnded ? 0 : heightSum < height ? Math.max(appendSpace, height) : appendSpace
+  const currentAppendSpace = Math.max(footEnded ? 0 : appendSpace, heightSum < height ? height : 0)
 
   const onRefed = useCallback((el: HTMLDivElement) => {
     if (el) {
@@ -163,19 +170,27 @@ export const DynamicScroll = <T extends DataBase>(
   // const minUnloadDistance = useRefState(0)
 
   useLayoutEffect(() => {
-    if (scrollerRef.current) {
-      setHeight(scrollerRef.current!.offsetHeight);
+    const root = scrollerRef.current
+    if (root) {
       const cb: ResizeObserverCallback = () => {
-        setHeight(scrollerRef.current!.offsetHeight);
+        const prevHeight = heightRef.current
+        if (prevHeight === 0) {
+          flushSync(() => {
+            setHeight(root.offsetHeight);
+          })
+          root.scrollTop = prependSpace;
+        } else {
+          setHeight(root.offsetHeight);
+        }
       }
       const observer = new ResizeObserver(cb)
-      observer.observe(scrollerRef.current)
+      observer.observe(root)
       return () => {
         observer.disconnect()
       }
     }
     
-  }, [setHeight]);
+  }, [heightRef, prependSpace, setHeight]);
 
   const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -437,7 +452,6 @@ export const DynamicScroll = <T extends DataBase>(
   const fetchPrev =
     !headEnded &&
     !fetchNext &&
-    dataStates.length > 1 &&
     currentScroll < preloadRange;
 
   const trimPrev = !(fetchNext || fetchPrev ) && currentScroll > maxLiveViewport 
@@ -726,10 +740,14 @@ export const DynamicScroll = <T extends DataBase>(
 
   return (
     <div ref={onRefed} style={style} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div style={{ height: `${currentPrependSpace}px` }} />
+      <div style={{ height: `${currentPrependSpace}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: "-1", overflow: 'hidden' }}>
+        {prependContent}
+      </div>
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
-      <div style={{ height: `${currentAppendSpace}px` }} />
+      <div style={{ height: `${currentAppendSpace}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: "-1", overflow: 'hidden' }} >
+        {appendContent}
+      </div>
     </div>
   );
 };

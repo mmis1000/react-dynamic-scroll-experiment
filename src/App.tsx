@@ -7,9 +7,12 @@ import { Demo4 } from "./Demo4";
 import { Demo5 } from "./Demo5";
 import { Demo6 } from "./Demo6";
 import { Demo7 } from "./Demo7";
+import { Demo8 } from "./Demo8";
+import { Demo9 } from "./Demo9";
+import { Demo10 } from "./Demo10";
 
 function App() {
-  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5' | 'demo6' | 'demo7'>('demo1')
+  const [currentDemo, setCurrentDemo] = useState<'demo1' | 'demo2' | 'demo3' | 'demo4' | 'demo5' | 'demo6' | 'demo7' | 'demo8' | 'demo9' | 'demo10'>('demo1')
   return (
     <div className="App">
       <div className="menu">
@@ -20,6 +23,9 @@ function App() {
         <button onClick={() => setCurrentDemo('demo5')}>Touch aware scroll anchor</button>
         <button onClick={() => setCurrentDemo('demo6')}>Resize aware</button>
         <button onClick={() => setCurrentDemo('demo7')}>Fixed end</button>
+        <button onClick={() => setCurrentDemo('demo8')}>Fixed end with loading</button>
+        <button onClick={() => setCurrentDemo('demo9')}>Fixed end started at end</button>
+        <button onClick={() => setCurrentDemo('demo10')}>Fixed end started at start</button>
       </div>
       {currentDemo === 'demo1' && <Demo1 className="content" />}
       {currentDemo === 'demo2' && <Demo2 className="content" />}
@@ -28,6 +34,9 @@ function App() {
       {currentDemo === 'demo5' && <Demo5 className="content" />}
       {currentDemo === 'demo6' && <Demo6 className="content" />}
       {currentDemo === 'demo7' && <Demo7 className="content" />}
+      {currentDemo === 'demo8' && <Demo8 className="content" />}
+      {currentDemo === 'demo9' && <Demo9 className="content" />}
+      {currentDemo === 'demo10' && <Demo10 className="content" />}
     </div>
   );
 }
