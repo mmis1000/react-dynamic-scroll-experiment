@@ -1,4 +1,5 @@
 .dyn.root {
   overflow: auto;
   overflow-anchor: none;
+  overscroll-behavior-y: contain;
 }
