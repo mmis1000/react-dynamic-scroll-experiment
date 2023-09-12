@@ -10,33 +10,33 @@ import { END_OF_STREAM, getHeight } from "./DynamicScrollUtils";
 
 const COUNT = 10;
 
-const API_BASE = "https://api.pexels.com/v1/curated"
-const API_KEY = "S6Q7YlUQjfI3zdss4TANCEKEs2FuYhLz6Bi4GT5mGNFJfN6dfnqYL02y"
+const API_BASE = "https://api.pexels.com/v1/curated";
+const API_KEY = "S6Q7YlUQjfI3zdss4TANCEKEs2FuYhLz6Bi4GT5mGNFJfN6dfnqYL02y";
 interface PhotoItem {
-  src:{medium:string}
-  alt: string,
-  photographer: string,
-  photographer_url: string
+  src: { medium: string };
+  alt: string;
+  photographer: string;
+  photographer_url: string;
 }
 const getData = async (signal: AbortSignal, page: number, pageSize: number) => {
   const request = new Request(`${API_BASE}?page=${page}&per_page=${pageSize}`, {
     headers: {
-      Authorization: API_KEY
+      Authorization: API_KEY,
     },
-    signal
-  })
-  const res = await fetch(request)
-  const json = await res.json()
-  console.log(json)
-  return json as { photos: PhotoItem[] }
-}
+    signal,
+  });
+  const res = await fetch(request);
+  const json = await res.json();
+  console.log(json);
+  return json as { photos: PhotoItem[] };
+};
 
 interface Data extends DataBase {
   /** 1 index */
-  page: number
-  pageSize: number
-  itemIndex: number,
-  items: PhotoItem[]
+  page: number;
+  pageSize: number;
+  itemIndex: number;
+  items: PhotoItem[];
 }
 
 const ImageElement = forwardRef<
@@ -50,8 +50,8 @@ const ImageElement = forwardRef<
   return (
     <div
       ref={ref}
-      style={{ ...(style ?? {}), display: 'flex', justifyContent: 'stretch' }}
-      className={className ? 'item ' + className : 'item'}
+      style={{ ...(style ?? {}), display: "flex", justifyContent: "stretch" }}
+      className={className ? "item " + className : "item"}
     >
       {children}
     </div>
@@ -59,59 +59,81 @@ const ImageElement = forwardRef<
 });
 
 export function DemoRealWorld1({ className }: { className?: string }) {
-  const url = new URL(location.href)
-  const initialPageStr = url.searchParams.get('page') ?? '1'
-  const initialPageParsed = /\d+/.test(initialPageStr) ? Number(initialPageStr) : 1
-  const initialPageRefed = useRef(initialPageParsed)
-  
-  const onLoadMore: LoadHandler<Data> = async (direction, factory, data, _signal) => {
-    const bound = direction === 'prev' ? data[0] : data[data.length - 1]
+  const url = new URL(location.href);
+  const initialPageStr = url.searchParams.get("page") ?? "1";
+  const initialPageParsed = /\d+/.test(initialPageStr)
+    ? Number(initialPageStr)
+    : 1;
+  const initialPageRefed = useRef(initialPageParsed);
 
-    let items: PhotoItem[]
-    let page: number
-    let pageSize: number
-    let baseItemIndex: number
+  const onLoadMore: LoadHandler<Data> = async (
+    direction,
+    factory,
+    data,
+    _signal
+  ) => {
+    const bound = direction === "prev" ? data[0] : data[data.length - 1];
+
+    let items: PhotoItem[];
+    let page: number;
+    let pageSize: number;
+    let baseItemIndex: number;
 
     if (bound == null) {
-      if (direction === 'prev') {
-        return END_OF_STREAM
+      if (direction === "prev") {
+        return END_OF_STREAM;
       } else {
-        page = initialPageRefed.current
-        pageSize = COUNT
-        const { photos } = await getData(_signal, page, COUNT)
-        items = photos
-        baseItemIndex = 0
+        page = initialPageRefed.current;
+        pageSize = COUNT;
+        const { photos } = await getData(_signal, page, COUNT);
+        items = photos;
+        baseItemIndex = 0;
       }
-    } else if (direction === 'prev' ?(bound.data.itemIndex !== 0) : (bound.data.itemIndex !== bound.data.pageSize - 1)) {
-      items = direction === 'prev' ? bound.data.items.slice(0, bound.data.itemIndex) : bound.data.items.slice(bound.data.itemIndex + 1)
-      page = bound.data.page
-      pageSize = bound.data.pageSize
-      baseItemIndex = direction === 'prev' ? 0 : bound.data.itemIndex + 1
+    } else if (
+      direction === "prev"
+        ? bound.data.itemIndex !== 0
+        : bound.data.itemIndex !== bound.data.pageSize - 1
+    ) {
+      // print remaining items in data field
+      items =
+        direction === "prev"
+          ? bound.data.items.slice(0, bound.data.itemIndex)
+          : bound.data.items.slice(bound.data.itemIndex + 1);
+      page = bound.data.page;
+      pageSize = bound.data.pageSize;
+      baseItemIndex = direction === "prev" ? 0 : bound.data.itemIndex + 1;
     } else {
-      const currentPage = direction === 'prev' ? (bound.data.page - 1) : (bound.data.page + 1)
+      // fetch new data
+      const currentPage =
+        direction === "prev" ? bound.data.page - 1 : bound.data.page + 1;
 
-      if (currentPage < 1) return END_OF_STREAM
+      if (currentPage < 1) return END_OF_STREAM;
 
-      const { photos } = await getData(_signal, currentPage, bound.data.pageSize)
-      items = photos
-      page = currentPage
-      pageSize = bound.data.pageSize
-      baseItemIndex = 0
+      const { photos } = await getData(
+        _signal,
+        currentPage,
+        bound.data.pageSize
+      );
+      items = photos;
+      page = currentPage;
+      pageSize = bound.data.pageSize;
+      baseItemIndex = 0;
     }
 
     if (items.length === 0) {
-      return END_OF_STREAM
+      return END_OF_STREAM;
     }
 
-
     return items.map((data, index2, arr) => [
-      <ImageElement
-        ref={factory(index2, arr.length).resizeRef}
-      >
-        <img src={data.src.medium} style={{width: '100%'}} />
-        <div className="index">page {page}, {index2 + 1}/{pageSize}</div>
+      <ImageElement ref={factory(index2, arr.length).resizeRef}>
+        <img src={data.src.medium} style={{ width: "100%" }} />
+        <div className="index">
+          page {page}, {index2 + 1}/{pageSize}
+        </div>
         <div className="caption">{data.alt}</div>
-        <a className="author" href={data.photographer_url} target="_blank">{data.photographer}</a>
+        <a className="author" href={data.photographer_url} target="_blank">
+          {data.photographer}
+        </a>
       </ImageElement>,
       {
         index: factory(index2, arr.length).index,
@@ -119,9 +141,9 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         pageSize,
         items,
         itemIndex: baseItemIndex + index2,
-        initialHeight: 1000
-      }
-    ])
+        initialHeight: 1000,
+      },
+    ]);
   };
 
   const onSelectAnchor: AnchorSelector<{
@@ -155,7 +177,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
 
   return (
     <DynamicScroll
-      className={className ? 'real ' + className : 'real'}
+      className={className ? "real " + className : "real"}
       prependSpace={3000}
       appendSpace={3000}
       preloadRange={3000}
