@@ -32,46 +32,13 @@ const ResizedElement = forwardRef<
 
 export function Demo9({ className }: { className?: string }) {
   const MIN_INDEX = -100;
-  const onPrepend: LoadHandler<{
-    index: number;
-    initialHeight: number;
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  }> = async (index, _props, _data, _signal) => {
-    await new Promise<void>((resolve) => setTimeout(resolve, DELAY));
-    const arr: Array<
-      [
-        ReactElement<DynamicChildElementProps>,
-        { index: number; initialHeight: number }
-      ]
-    > = [];
-    if (index <= MIN_INDEX) {
-      return END_OF_STREAM;
-    }
-    for (let i = 0; i < COUNT && index - i - 1 >= MIN_INDEX; i++) {
-      const height = 400;
-      const color = ~~(360 * Math.random());
-      arr.unshift([
-        <ResizedElement
-          style={{ background: `hsl(${color}deg 30% 60%)` }}
-          key={index - i - 1}
-          ref={(el) => _props.resizeRef(el, index - i - 1)}
-        >
-          index: {index - i - 1} <br />
-          height: {height}
-        </ResizedElement>,
-        { index: index - i - 1, initialHeight: height },
-      ]);
-    }
-    console.log("p", index, arr);
-    return arr;
-  };
-
   const MAX_INDEX = -1;
-  const onAppend: LoadHandler<{
+
+  const onLoadMore: LoadHandler<{
     index: number;
     initialHeight: number;
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  }> = async (index, _props, _data, _signal) => {
+  }> = async (direction, factory, _data, _signal) => {
     await new Promise<void>((resolve) => setTimeout(resolve, DELAY));
     const arr: Array<
       [
@@ -79,27 +46,38 @@ export function Demo9({ className }: { className?: string }) {
         { index: number; initialHeight: number }
       ]
     > = [];
-    if (index >= MAX_INDEX) {
-      return END_OF_STREAM;
+    let maxValidAmount: number
+    if (direction ==='next') {
+      if ( factory(0, 1).index > MAX_INDEX) {
+        return END_OF_STREAM;
+      }
+      maxValidAmount = MAX_INDEX - factory(0, 1).index + 1
+    } else {
+      if (factory(0, 1).index < MIN_INDEX) {
+        return END_OF_STREAM;
+      }
+      maxValidAmount = factory(0, 1).index - MIN_INDEX + 1
     }
-    for (let i = 0; i < COUNT && index + i + 1 <= MAX_INDEX; i++) {
+
+    const amount = Math.min(maxValidAmount, COUNT)
+
+    for (let i = 0; i < amount; i++) {
       const height = 400;
       const color = ~~(360 * Math.random());
       arr.push([
         <ResizedElement
           style={{ background: `hsl(${color}deg 30% 60%)` }}
-          key={index + i + 1}
-          ref={(el) => _props.resizeRef(el, index + i + 1)}
+          ref={factory(i, amount).resizeRef}
         >
-          index: {index + i + 1} <br />
+          index: {factory(i, amount).index} <br />
           height: {height}
         </ResizedElement>,
-        { index: index + i + 1, initialHeight: height },
+        { index: factory(i, amount).index, initialHeight: height },
       ]);
     }
-    console.log("a", index, arr);
     return arr;
   };
+
 
   const onSelectAnchor: AnchorSelector<{
     index: number;
@@ -137,8 +115,7 @@ export function Demo9({ className }: { className?: string }) {
       appendSpace={100}
       prependContent="Loading..."
       appendContent="Loading..."
-      onPrepend={onPrepend}
-      onAppend={onAppend}
+      onLoadMore={onLoadMore}
       onSelectAnchor={onSelectAnchor}
     />
   );

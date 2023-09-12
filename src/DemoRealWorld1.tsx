@@ -64,28 +64,39 @@ export function DemoRealWorld1({ className }: { className?: string }) {
   const initialPageParsed = /\d+/.test(initialPageStr) ? Number(initialPageStr) : 1
   const initialPageRefed = useRef(initialPageParsed)
   
-  const onPrepend: LoadHandler<Data> = async (index, _props, data, _signal) => {
-    const next = data[0]
+  const onLoadMore: LoadHandler<Data> = async (direction, factory, data, _signal) => {
+    const bound = direction === 'prev' ? data[0] : data[data.length - 1]
 
     let items: PhotoItem[]
     let page: number
     let pageSize: number
+    let baseItemIndex: number
 
-    if (next == null) {
-      return END_OF_STREAM
-    } else if (next.data.itemIndex !== 0) {
-      items = next.data.items.slice(0, next.data.itemIndex)
-      page = next.data.page
-      pageSize = next.data.pageSize
+    if (bound == null) {
+      if (direction === 'prev') {
+        return END_OF_STREAM
+      } else {
+        page = initialPageRefed.current
+        pageSize = COUNT
+        const { photos } = await getData(_signal, page, COUNT)
+        items = photos
+        baseItemIndex = 0
+      }
+    } else if (direction === 'prev' ?(bound.data.itemIndex !== 0) : (bound.data.itemIndex !== bound.data.pageSize - 1)) {
+      items = direction === 'prev' ? bound.data.items.slice(0, bound.data.itemIndex) : bound.data.items.slice(bound.data.itemIndex + 1)
+      page = bound.data.page
+      pageSize = bound.data.pageSize
+      baseItemIndex = direction === 'prev' ? 0 : bound.data.itemIndex + 1
     } else {
-      const currentPage = next.data.page - 1
+      const currentPage = direction === 'prev' ? (bound.data.page - 1) : (bound.data.page + 1)
 
       if (currentPage < 1) return END_OF_STREAM
 
-      const { photos } = await getData(_signal, currentPage, next.data.pageSize)
+      const { photos } = await getData(_signal, currentPage, bound.data.pageSize)
       items = photos
       page = currentPage
-      pageSize = next.data.pageSize
+      pageSize = bound.data.pageSize
+      baseItemIndex = 0
     }
 
     if (items.length === 0) {
@@ -95,8 +106,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
 
     return items.map((data, index2, arr) => [
       <ImageElement
-        key={index - arr.length + index2}
-        ref={(el) => _props.resizeRef(el, index - arr.length + index2)}
+        ref={factory(index2, arr.length).resizeRef}
       >
         <img src={data.src.medium} style={{width: '100%'}} />
         <div className="index">page {page}, {index2 + 1}/{pageSize}</div>
@@ -104,64 +114,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         <a className="author" href={data.photographer_url} target="_blank">{data.photographer}</a>
       </ImageElement>,
       {
-        index: index - arr.length + index2,
-        page,
-        pageSize,
-        items,
-        itemIndex: index2,
-        initialHeight: 1000
-      }
-    ])
-  };
-
-  const onAppend: LoadHandler<Data> = async (index, _props, data, _signal) => {
-    const prev = data[data.length - 1]
-
-    let items: PhotoItem[]
-    let page: number
-    let pageSize: number
-    let baseItemIndex: number
-
-    if (prev == null) {
-      page = initialPageRefed.current
-      pageSize = COUNT
-      baseItemIndex = 0
-
-      const { photos } = await getData(_signal, page, COUNT)
-      items = photos
-    } else if (prev.data.itemIndex !== prev.data.pageSize - 1) {
-      items = prev.data.items.slice(prev.data.itemIndex + 1)
-      page = prev.data.page
-      pageSize = prev.data.pageSize
-      baseItemIndex = prev.data.itemIndex + 1
-    } else {
-      const currentPage = prev.data.page + 1
-
-      if (currentPage < 1) return END_OF_STREAM
-
-      const { photos } = await getData(_signal, currentPage, prev.data.pageSize)
-      items = photos
-      page = currentPage
-      pageSize = prev.data.pageSize
-      baseItemIndex = 0
-    }
-
-    if (items.length === 0) {
-      return END_OF_STREAM
-    }
-
-    return items.map((data, index2) => [
-      <ImageElement
-        key={index + 1 + index2}
-        ref={(el) => _props.resizeRef(el, index + 1 + index2)}
-      >
-        <img src={data.src.medium} style={{width: '100%'}} />
-        <div className="index">page {page}, {baseItemIndex + index2 + 1}/{pageSize}</div>
-        <div className="caption">{data.alt}</div>
-        <a className="author" href={data.photographer_url} target="_blank">{data.photographer}</a>
-      </ImageElement>,
-      {
-        index: index + 1 + index2,
+        index: factory(index2, arr.length).index,
         page,
         pageSize,
         items,
@@ -208,8 +161,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
       preloadRange={3000}
       prependContent="Loading..."
       appendContent="Loading..."
-      onPrepend={onPrepend}
-      onAppend={onAppend}
+      onLoadMore={onLoadMore}
       onSelectAnchor={onSelectAnchor}
     />
   );

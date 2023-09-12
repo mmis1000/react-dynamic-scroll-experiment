@@ -49,29 +49,7 @@ export function Demo3 ({
     className
 }: { className?: string }) {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onPrepend: LoadHandler<{ index: number, initialHeight: number }> = async (index, _props, _data, _signal) => {
-      await new Promise<void>(resolve => setTimeout(resolve, DELAY))
-      const arr: Array<[ReactElement<DynamicChildElementProps>, { index: number, initialHeight: number }]> = []
-      for (let i = 0; i < COUNT; i++) {
-        const height = ~~(Math.random() * 50 + 75)
-        const color = ~~(360 * Math.random())
-        arr.unshift([<ResizedElement
-          style={{background: `hsl(${color}deg 30% 60%)`}}
-          key={index - i - 1}
-          initialHeight={height}
-          newHeight={height + 50}
-          delay={5000}
-          onResize={() => _props.onSizeUpdate(height + 50, index - i - 1)}
-        >
-          index: {index - i - 1} <br/>
-          height: {height}
-        </ResizedElement>, { index: index - i - 1, initialHeight: height }])
-      }
-      return arr
-    }
-  
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onAppend: LoadHandler<{ index: number, initialHeight: number }> = async (index, _props, _data, _signal) => {
+    const onLoadMore: LoadHandler<{ index: number, initialHeight: number }> = async (_direction, factory, _data, _signal) => {
       await new Promise<void>(resolve => setTimeout(resolve, DELAY))
       const arr: Array<[ReactElement<DynamicChildElementProps>, { index: number, initialHeight: number }]> = []
       for (let i = 0; i < COUNT; i++) {
@@ -79,18 +57,17 @@ export function Demo3 ({
         const color = ~~(360 * Math.random())
         arr.push([<ResizedElement
           style={{background: `hsl(${color}deg 30% 60%)`}}
-          key={index + i + 1}
           initialHeight={height}
           newHeight={height + 50}
           delay={5000}
-          onResize={() => _props.onSizeUpdate(height + 50, index + i + 1)}
+          onResize={() => factory(i, COUNT).updateSize(height + 50)}
         >
-          index: {index + i + 1} <br/>
+          index: {factory(i, COUNT).index} <br/>
           height: {height}
-        </ResizedElement>, { index: index + i + 1, initialHeight: height }])
+        </ResizedElement>, { index: factory(i, COUNT).index, initialHeight: height }])
       }
       return arr
     }
   
-    return <DynamicScroll className={className} prependSpace={5000} appendSpace={5000} onPrepend={onPrepend} onAppend={onAppend}/>
+    return <DynamicScroll className={className} prependSpace={5000} appendSpace={5000} onLoadMore={onLoadMore} />
 }

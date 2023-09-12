@@ -26,17 +26,20 @@ export interface DataEntry<T extends DataBase> {
   data: T;
 }
 
-interface DynamicChildProps {
-  onSizeUpdate: (newHeight: number, index: number) => void;
-  resizeRef: (el: HTMLElement | null, index: number) => void
-}
-
 export interface DynamicChildElementProps {}
+
+export interface EntryFactory {
+  (index: number, size: number): {
+    resizeRef: (el: HTMLElement | null) => void
+    updateSize: (newHeight: number) => void;
+    index: number
+  }
+}
 
 export interface LoadHandler<Data extends DataBase> {
   (
-    index: number,
-    props: DynamicChildProps,
+    direction: 'next' | 'prev',
+    factory: EntryFactory,
     datas: DataEntry<Data>[],
     signal: AbortSignal,
   ): Promise<[ReactElement<DynamicChildElementProps>, Data][] | typeof END_OF_STREAM>;
@@ -54,8 +57,7 @@ interface DynamicScrollProps<Data extends DataBase> {
    * Because it would unload content after loaded instantly otherwise.
    */
   maxLiveViewport?: number;
-  onPrepend: LoadHandler<Data>;
-  onAppend: LoadHandler<Data>;
+  onLoadMore: LoadHandler<Data>;
   className?: string,
   style?: CSSProperties,
   prependContent?: ReactNode,
@@ -122,8 +124,7 @@ export const DynamicScroll = <T extends DataBase>(
     appendSpace,
     maxLiveViewport: maxLiveViewportProp = 3000,
     preloadRange = 1000,
-    onAppend,
-    onPrepend,
+    onLoadMore,
     prependContent,
     appendContent,
     className,
@@ -527,6 +528,22 @@ export const DynamicScroll = <T extends DataBase>(
     })
   }, [])
 
+  const createFactory = useCallback((direction: 'next' | 'prev', boundaryIndex: number): EntryFactory => (index: number, size: number) => {
+    if (direction === 'next') {
+      return {
+        resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
+        updateSize: (newHeight) => onSizeUpdate(newHeight, boundaryIndex + index + 1),
+        index: boundaryIndex + index + 1
+      }
+    } else {
+      return {
+        resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
+        updateSize: (newHeight) => onSizeUpdate(newHeight, boundaryIndex - size + index),
+        index: boundaryIndex - size + index
+      }
+    }
+  }, [onSizeUpdate, resizeRef])
+
   useEffect(() => {
     if (height === 0) {
       // not loaded yet
@@ -538,7 +555,7 @@ export const DynamicScroll = <T extends DataBase>(
       const signal = controller.signal;
       const lastIndex = dataStates[dataStates.length - 1]?.index;
       const index = lastIndex != null ? lastIndex : -1;
-      const p = onAppend(index, { onSizeUpdate, resizeRef }, dataStates, signal);
+      const p = onLoadMore('next', createFactory('next', index), dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("next", entries));
       return () => {
         controller.abort();
@@ -547,7 +564,7 @@ export const DynamicScroll = <T extends DataBase>(
       const controller = new AbortController();
       const signal = controller.signal;
       const index = dataStates[0]?.index ?? 0;
-      const p = onPrepend(index, { onSizeUpdate, resizeRef }, dataStates, signal);
+      const p = onLoadMore('prev', createFactory('prev', index), dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("prev", entries));
       return () => {
         controller.abort();
@@ -649,7 +666,7 @@ export const DynamicScroll = <T extends DataBase>(
         clearTimeout(id)
       }
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onAppend, onPrepend, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height]);
+  }, [dataStates, onInsert, fetchNext, fetchPrev, onLoadMore, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height, createFactory]);
 
   const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
 
