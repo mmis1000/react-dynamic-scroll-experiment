@@ -12,7 +12,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import "./DynamicScroll.css";
-import { END_OF_STREAM, getHeight } from "./DynamicScrollUtils";
+import { END_OF_STREAM, getHeight, useEvent } from "./DynamicScrollUtils";
 
 export interface DataBase {
   index: number;
@@ -45,12 +45,20 @@ export interface LoadHandler<Data extends DataBase> {
   ): Promise<[ReactElement<DynamicChildElementProps>, Data][] | typeof END_OF_STREAM>;
 }
 
+export interface ProgressHandler<Data extends DataBase> {
+  (
+    current: DataEntry<Data>,
+    offset: number,
+    dataList: DataEntry<Data>[],
+  ): void;
+}
+
 export interface AnchorSelector<Data extends DataBase> {
   (partialEntries: DataEntry<Data>[], index: number, offset: number, containerHeight: number, lastTouchPosition: number): [index: number, offset: number]
 }
 interface DynamicScrollProps<Data extends DataBase> {
-  prependSpace: number;
-  appendSpace: number;
+  prependSpace?: number;
+  appendSpace?: number;
   preloadRange?: number
   /** Default unload range.  
    * May be bumped if more content than expect loaded at once.  
@@ -58,6 +66,7 @@ interface DynamicScrollProps<Data extends DataBase> {
    */
   maxLiveViewport?: number;
   onLoadMore: LoadHandler<Data>;
+  onProgress?: ProgressHandler<Data>;
   className?: string,
   style?: CSSProperties,
   prependContent?: ReactNode,
@@ -74,7 +83,7 @@ const useRefState = <S,>(v: S | (() => S)) => {
   return [state, setState, ref] as const;
 };
 
-const INTERATION_CHANGE_DELAY = 100;
+const INTERACTION_CHANGE_DELAY = 100;
 
 const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
   if (entries.length === 0) {
@@ -120,11 +129,12 @@ const getDistanceWithIndexAndOffset = (entries: DataEntry<DataBase>[], index: nu
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
 export const DynamicScroll = <T extends DataBase>(
   {
-    prependSpace,
-    appendSpace,
+    prependSpace = 0,
+    appendSpace = 0,
     maxLiveViewport: maxLiveViewportProp = 3000,
     preloadRange = 1000,
     onLoadMore,
+    onProgress = () => {},
     prependContent,
     appendContent,
     className,
@@ -132,6 +142,7 @@ export const DynamicScroll = <T extends DataBase>(
     style
   }: DynamicScrollProps<T>
 ) => {
+  const onLoadMoreEvent = useEvent(onLoadMore)
   const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
     []
   );
@@ -201,6 +212,15 @@ export const DynamicScroll = <T extends DataBase>(
   /** 0 ~ Infinity */
   const [negativeSpace, setNegativeSpace, negativeSpaceRef] = useRefState(0)
 
+  const onProgressEvent = useEvent((index: number, offset: number) => {
+    const item = dataStates.find(i => i.index === index)
+    if (!item) {
+      console.warn('emitted progess without item')
+      return
+    }
+    onProgress(item, offset, dataStates)
+  })
+
   useEffect(() => {
     const now = Date.now()
     if (hasInteractionBefore > now) {
@@ -246,7 +266,7 @@ export const DynamicScroll = <T extends DataBase>(
     }
   }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
 
-  const onSizeUpdateLatest = (newObjectHeight: number, index: number) => {
+  const onSizeUpdate = useEvent((newObjectHeight: number, index: number) => {
     const oldEntry = dataStates.find(i => i.index === index)
     if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
       return
@@ -280,6 +300,7 @@ export const DynamicScroll = <T extends DataBase>(
         setCurrentBase(newBase);
         setCurrentOffset(newOffset);
       })
+      onProgressEvent(newBase, newOffset)
     } else {
       const space = negativeSpace + (newDistance - oldDistance)
       const rootEl = scrollerRef.current!
@@ -293,19 +314,9 @@ export const DynamicScroll = <T extends DataBase>(
       rootEl.style.overflow = "hidden";
       rootEl.scrollTop = old + space;
       rootEl.style.overflow = "auto";
-
+      onProgressEvent(newBase, newOffset)
     }
-  }
-
-  const onSizeUpdateRef = useRef(onSizeUpdateLatest)
-
-  useLayoutEffect(() => {
-    onSizeUpdateRef.current = onSizeUpdateLatest
   })
-
-  const onSizeUpdate = useCallback((height: number, index: number) => {
-    onSizeUpdateRef.current(height, index)
-  }, []);
 
   const onInsert = useCallback(
     (
@@ -412,6 +423,7 @@ export const DynamicScroll = <T extends DataBase>(
         setMinMaxLiveViewport(heightSum + preloadRange)
       });
 
+      onProgressEvent(currentBaseRef.current, currentOffsetRef.current)
 
       if (position === "next" && isInitialInsert) {
         // we may have a wrong scroll if append space is 0
@@ -434,7 +446,7 @@ export const DynamicScroll = <T extends DataBase>(
         }
       }
     },
-    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, heightRef, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
+    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, heightRef, onProgressEvent, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
   );
 
   // calculate whether we need to fetch more
@@ -555,7 +567,7 @@ export const DynamicScroll = <T extends DataBase>(
       const signal = controller.signal;
       const lastIndex = dataStates[dataStates.length - 1]?.index;
       const index = lastIndex != null ? lastIndex : -1;
-      const p = onLoadMore('next', createFactory('next', index), dataStates, signal);
+      const p = onLoadMoreEvent('next', createFactory('next', index), dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("next", entries));
       return () => {
         controller.abort();
@@ -564,7 +576,7 @@ export const DynamicScroll = <T extends DataBase>(
       const controller = new AbortController();
       const signal = controller.signal;
       const index = dataStates[0]?.index ?? 0;
-      const p = onLoadMore('prev', createFactory('prev', index), dataStates, signal);
+      const p = onLoadMoreEvent('prev', createFactory('prev', index), dataStates, signal);
       p.then((entries) => !signal.aborted && onInsert("prev", entries));
       return () => {
         controller.abort();
@@ -666,7 +678,7 @@ export const DynamicScroll = <T extends DataBase>(
         clearTimeout(id)
       }
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onLoadMore, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height, createFactory]);
+  }, [dataStates, onInsert, fetchNext, fetchPrev, onLoadMoreEvent, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height, createFactory]);
 
   const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
 
@@ -674,7 +686,7 @@ export const DynamicScroll = <T extends DataBase>(
     if (hasFocusedInteraction) {
       setHasInteractionBefore(Infinity)
     } else {
-      setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
+      setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY)
     }
 
     if (dataStates.length === 0) {
@@ -707,10 +719,12 @@ export const DynamicScroll = <T extends DataBase>(
         ev.currentTarget.style.overflow = 'auto'
         // FIXME: safari scroll workaround
         ev.currentTarget.scrollTo({ top: 1, behavior: 'smooth' })
+        onProgressEvent(newBase.index, 0)
         return
       }
       setCurrentOffset(offset);
       setCurrentBase(newBase.index);
+      onProgressEvent(newBase.index, offset)
       // console.log(offset);
       // console.log(newBase.index);
       return;
@@ -722,6 +736,7 @@ export const DynamicScroll = <T extends DataBase>(
       if (offset + height > pos) {
         setCurrentOffset(pos - offset);
         setCurrentBase(item.index);
+        onProgressEvent(item.index, pos - offset)
         // console.log(pos - offset);
         // console.log(item.index);
         return;
@@ -732,6 +747,7 @@ export const DynamicScroll = <T extends DataBase>(
     const item = dataStates[dataStates.length - 1];
     setCurrentOffset(pos - offset + getHeight(item));
     setCurrentBase(item.index);
+    onProgressEvent(item.index, pos - offset + getHeight(item))
     // console.log(pos - offset + getHeight(item));
     // console.log(item.index);
   };
@@ -757,7 +773,7 @@ export const DynamicScroll = <T extends DataBase>(
   const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = () => {
     // console.log(ev)
     setHasFocusedInteraction(false)
-    setHasInteractionBefore(Date.now() + INTERATION_CHANGE_DELAY)
+    setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY)
   }
 
 

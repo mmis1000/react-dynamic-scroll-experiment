@@ -1,9 +1,10 @@
-import { CSSProperties, ReactNode, forwardRef, useRef } from "react";
+import { CSSProperties, ReactNode, forwardRef, useRef, useState } from "react";
 import {
   DynamicScroll,
   LoadHandler,
   AnchorSelector,
   DataBase,
+  ProgressHandler,
 } from "./DynamicScroll";
 import "./DemoRealWorld1.css";
 import { END_OF_STREAM, getHeight } from "./DynamicScrollUtils";
@@ -175,16 +176,43 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     return [currentSelection, currentOffset];
   };
 
+  const [currentPage, setCurrentPage] = useState(0);
+  const [currentImage, setCurrentImage] = useState(0);
+  const [currentTotalImage, setCurrentTotalImage] = useState(0);
+
+  const onProgress: ProgressHandler<Data> = (current) => {
+    setCurrentPage(current.data.page);
+    setCurrentImage(current.data.itemIndex + 1);
+    setCurrentTotalImage(current.data.pageSize);
+  };
+
   return (
-    <DynamicScroll
-      className={className ? "real " + className : "real"}
-      prependSpace={3000}
-      appendSpace={3000}
-      preloadRange={3000}
-      prependContent="Loading..."
-      appendContent="Loading..."
-      onLoadMore={onLoadMore}
-      onSelectAnchor={onSelectAnchor}
-    />
+    <>
+      <DynamicScroll
+        className={className ? "real " + className : "real"}
+        prependSpace={3000}
+        appendSpace={3000}
+        preloadRange={3000}
+        prependContent="Loading..."
+        appendContent="Loading..."
+        onLoadMore={onLoadMore}
+        onProgress={onProgress}
+        onSelectAnchor={onSelectAnchor}
+      />
+      <div
+        style={{
+          position: "fixed",
+          right: "1rem",
+          bottom: "1rem",
+          padding: "1rem",
+          background: "rgba(0, 0, 0, 0.2)",
+          color: 'white',
+          fontFamily: 'monospace',
+          whiteSpace: 'pre-wrap'
+        }}
+      >
+        Page: {currentPage}, {currentImage < 10 ? ' ' : ''}{currentImage} / {currentTotalImage}
+      </div>
+    </>
   );
 }
