@@ -76,6 +76,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     const bound = direction === "prev" ? data[0] : data[data.length - 1];
 
     let items: PhotoItem[];
+    let fullItems: PhotoItem[];
     let page: number;
     let pageSize: number;
     let baseItemIndex: number;
@@ -87,7 +88,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         page = initialPageRefed.current;
         pageSize = COUNT;
         const { photos } = await getData(_signal, page, COUNT);
-        items = photos;
+        fullItems = items = photos;
         baseItemIndex = 0;
       }
     } else if (
@@ -96,6 +97,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         : bound.data.itemIndex !== bound.data.pageSize - 1
     ) {
       // print remaining items in data field
+      fullItems = bound.data.items
       items =
         direction === "prev"
           ? bound.data.items.slice(0, bound.data.itemIndex)
@@ -115,7 +117,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         currentPage,
         bound.data.pageSize
       );
-      items = photos;
+      fullItems =items = photos;
       page = currentPage;
       pageSize = bound.data.pageSize;
       baseItemIndex = 0;
@@ -129,7 +131,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
       <ImageElement ref={factory(index2, arr.length).resizeRef}>
         <img src={data.src.medium} style={{ width: "100%" }} />
         <div className="index">
-          page {page}, {index2 + 1}/{pageSize}
+          page {page}, {baseItemIndex + index2 + 1}/{pageSize}
         </div>
         <div className="caption">{data.alt}</div>
         <a className="author" href={data.photographer_url} target="_blank">
@@ -140,9 +142,9 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         index: factory(index2, arr.length).index,
         page,
         pageSize,
-        items,
+        items: fullItems,
         itemIndex: baseItemIndex + index2,
-        initialHeight: 1000,
+        initialHeight: window.innerWidth / 3 * 4,
       },
     ]);
   };
