@@ -30,49 +30,62 @@ export interface DynamicChildElementProps {}
 
 export interface EntryFactory {
   (index: number, size: number): {
-    resizeRef: (el: HTMLElement | null) => void
+    resizeRef: (el: HTMLElement | null) => void;
     updateSize: (newHeight: number) => void;
-    index: number
-  }
+    index: number;
+  };
 }
 
 export interface LoadHandler<Data extends DataBase> {
   (
-    direction: 'next' | 'prev',
+    direction: "next" | "prev",
     factory: EntryFactory,
     datas: DataEntry<Data>[],
-    signal: AbortSignal,
-  ): Promise<[ReactElement<DynamicChildElementProps>, Data][] | typeof END_OF_STREAM>;
+    signal: AbortSignal
+  ): Promise<
+    [ReactElement<DynamicChildElementProps>, Data][] | typeof END_OF_STREAM
+  >;
 }
 
 export interface ProgressHandler<Data extends DataBase> {
-  (
-    current: DataEntry<Data>,
-    offset: number,
-    dataList: DataEntry<Data>[],
-  ): void;
+  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[]): void;
 }
 
 export interface AnchorSelector<Data extends DataBase> {
-  (partialEntries: DataEntry<Data>[], index: number, offset: number, containerHeight: number, lastTouchPosition: number): [index: number, offset: number]
+  (
+    partialEntries: DataEntry<Data>[],
+    index: number,
+    offset: number,
+    containerHeight: number,
+    lastTouchPosition: number
+  ): [index: number, offset: number];
 }
-interface DynamicScrollProps<Data extends DataBase> {
+
+interface RawDynamicScrollProps<Data extends DataBase> {
   prependSpace?: number;
   appendSpace?: number;
-  preloadRange?: number
-  /** Default unload range.  
-   * May be bumped if more content than expect loaded at once.  
+  preloadRange?: number;
+  /** Default unload range.
+   * May be bumped if more content than expect loaded at once.
    * Because it would unload content after loaded instantly otherwise.
    */
   maxLiveViewport?: number;
   onLoadMore: LoadHandler<Data>;
   onProgress?: ProgressHandler<Data>;
-  className?: string,
-  style?: CSSProperties,
-  prependContent?: ReactNode,
-  appendContent?: ReactNode,
-  onSelectAnchor?: AnchorSelector<Data>
+  className?: string;
+  style?: CSSProperties;
+  prependContent?: ReactNode;
+  appendContent?: ReactNode;
+  onSelectAnchor?: AnchorSelector<Data>;
 }
+
+type DivProps = React.HTMLAttributes<HTMLDivElement>;
+
+type DynamicScrollProps<Data extends DataBase> = Omit<
+  DivProps,
+  keyof RawDynamicScrollProps<Data>
+> &
+  RawDynamicScrollProps<Data>;
 
 const useRefState = <S,>(v: S | (() => S)) => {
   const [state, setState] = useState<S>(v);
@@ -85,70 +98,76 @@ const useRefState = <S,>(v: S | (() => S)) => {
 
 const INTERACTION_CHANGE_DELAY = 100;
 
-const getIndexAndOffsetWithDistance = (entries: DataEntry<DataBase>[], distance: number): [index: number, offset: number] => {
+const getIndexAndOffsetWithDistance = (
+  entries: DataEntry<DataBase>[],
+  distance: number
+): [index: number, offset: number] => {
   if (entries.length === 0) {
-    return [0, distance]
+    return [0, distance];
   }
 
   if (distance < 0) {
-    return [entries[0]!.index, distance]
+    return [entries[0]!.index, distance];
   }
 
-  let currentOffset = distance
+  let currentOffset = distance;
 
   for (let i = 0; i < entries.length; i++) {
-    const height = getHeight(entries[i])
+    const height = getHeight(entries[i]);
     if (currentOffset < height) {
-      return [entries[i]!.index, currentOffset]
+      return [entries[i]!.index, currentOffset];
     }
-    currentOffset -= height
+    currentOffset -= height;
   }
 
-  const lastHeight = getHeight(entries[entries.length - 1])
+  const lastHeight = getHeight(entries[entries.length - 1]);
 
-  return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
-}
+  return [entries[entries.length - 1]!.index, currentOffset + lastHeight];
+};
 
-const getDistanceWithIndexAndOffset = (entries: DataEntry<DataBase>[], index: number, offset: number): number => {
+const getDistanceWithIndexAndOffset = (
+  entries: DataEntry<DataBase>[],
+  index: number,
+  offset: number
+): number => {
   if (entries.length === 0) {
-    return offset
+    return offset;
   }
-  let heightSum = 0
+  let heightSum = 0;
   for (let i = 0; i < entries.length; i++) {
-    const currentIndex = entries[i].index
+    const currentIndex = entries[i].index;
     if (currentIndex === index) {
-      return heightSum + offset
+      return heightSum + offset;
     }
-    heightSum += getHeight(entries[i])
+    heightSum += getHeight(entries[i]);
   }
   // it can happen if the scroll started at end with 0 items already appended
-  return 0
+  return 0;
   // throw new Error('invalid index ' + index)
-}
+};
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
-export const DynamicScroll = <T extends DataBase>(
-  {
-    prependSpace = 0,
-    appendSpace = 0,
-    maxLiveViewport: maxLiveViewportProp = 3000,
-    preloadRange = 1000,
-    onLoadMore,
-    onProgress = () => {},
-    prependContent,
-    appendContent,
-    className,
-    onSelectAnchor,
-    style
-  }: DynamicScrollProps<T>
-) => {
-  const onLoadMoreEvent = useEvent(onLoadMore)
+export const DynamicScroll = <T extends DataBase>({
+  prependSpace = 0,
+  appendSpace = 0,
+  maxLiveViewport: maxLiveViewportProp = 3000,
+  preloadRange = 1000,
+  onLoadMore,
+  onProgress = () => {},
+  prependContent,
+  appendContent,
+  className,
+  onSelectAnchor,
+  style,
+  ...props
+}: DynamicScrollProps<T>) => {
+  const onLoadMoreEvent = useEvent(onLoadMore);
   const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
     []
   );
 
-  const [minMaxLiveViewport, setMinMaxLiveViewport] = useState(0)
-  const maxLiveViewport = Math.max(maxLiveViewportProp, minMaxLiveViewport)
+  const [minMaxLiveViewport, setMinMaxLiveViewport] = useState(0);
+  const maxLiveViewport = Math.max(maxLiveViewportProp, minMaxLiveViewport);
 
   const [currentBase, setCurrentBase, currentBaseRef] = useRefState<number>(0);
   const [currentOffset, setCurrentOffset, currentOffsetRef] =
@@ -157,129 +176,161 @@ export const DynamicScroll = <T extends DataBase>(
   // height detection
   const [height, setHeight, heightRef] = useRefState(0);
 
-  const [headEnded, setHeadEnded, headEndedRef] = useRefState(false)
-  const [footEnded, setFootEnded, footEndedRef] = useRefState(false)
+  const [headEnded, setHeadEnded, headEndedRef] = useRefState(false);
+  const [footEnded, setFootEnded, footEndedRef] = useRefState(false);
 
   const heightSum = dataStates
     .map((i) => i.size ?? i.data.initialHeight)
     .reduce((p, v) => p + v, 0);
 
-  const currentPrependSpace = headEnded ? 0 : prependSpace
-  const currentAppendSpace = Math.max(footEnded ? 0 : appendSpace, heightSum < height ? height : 0)
+  const currentPrependSpace = headEnded ? 0 : prependSpace;
+  const currentAppendSpace = Math.max(
+    footEnded ? 0 : appendSpace,
+    heightSum < height ? height : 0
+  );
 
-  const onRefed = useCallback((el: HTMLDivElement) => {
-    if (el) {
-      el.scrollTop = prependSpace;
-    }
-    scrollerRef.current = el;
-  }, [prependSpace]);
+  const onRefed = useCallback(
+    (el: HTMLDivElement) => {
+      if (el) {
+        el.scrollTop = prependSpace;
+      }
+      scrollerRef.current = el;
+    },
+    [prependSpace]
+  );
 
   const scrollerRef = useRef<HTMLDivElement>();
 
-  const lastInteractPosition = useRef(0)
+  const lastInteractPosition = useRef(0);
 
   // we don't want to unload content that we just loaded
   // const minUnloadDistance = useRefState(0)
 
   useLayoutEffect(() => {
-    const root = scrollerRef.current
+    const root = scrollerRef.current;
     if (root) {
       const cb: ResizeObserverCallback = () => {
-        const prevHeight = heightRef.current
+        const prevHeight = heightRef.current;
         if (prevHeight === 0) {
           flushSync(() => {
             setHeight(root.offsetHeight);
-          })
+          });
           root.scrollTop = prependSpace;
         } else {
           setHeight(root.offsetHeight);
         }
-      }
-      const observer = new ResizeObserver(cb)
-      observer.observe(root)
+      };
+      const observer = new ResizeObserver(cb);
+      observer.observe(root);
       return () => {
-        observer.disconnect()
-      }
+        observer.disconnect();
+      };
     }
-    
   }, [heightRef, prependSpace, setHeight]);
 
-  const [hasInteractionBefore, setHasInteractionBefore] = useState(0)
+  const [hasInteractionBefore, setHasInteractionBefore] = useState(0);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasFocusedInteraction, setHasFocusedInteraction] = useRefState(false)
+  const [hasFocusedInteraction, setHasFocusedInteraction] = useRefState(false);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasInteraction, setHasInteraction, hasInteractionRef] = useRefState(false)
+  const [hasInteraction, setHasInteraction, hasInteractionRef] =
+    useRefState(false);
   /** 0 ~ Infinity */
-  const [negativeSpace, setNegativeSpace, negativeSpaceRef] = useRefState(0)
+  const [negativeSpace, setNegativeSpace, negativeSpaceRef] = useRefState(0);
 
   const onProgressEvent = useEvent((index: number, offset: number) => {
-    const item = dataStates.find(i => i.index === index)
+    const item = dataStates.find((i) => i.index === index);
     if (!item) {
-      console.warn('emitted progess without item')
-      return
+      console.warn("emitted progess without item");
+      return;
     }
-    onProgress(item, offset, dataStates)
-  })
+    onProgress(item, offset, dataStates);
+  });
 
   useEffect(() => {
-    const now = Date.now()
+    const now = Date.now();
     if (hasInteractionBefore > now) {
-      setHasInteraction(true)
+      setHasInteraction(true);
       if (hasInteractionBefore !== Infinity) {
         const id = setTimeout(() => {
-          setHasInteraction(false)
+          setHasInteraction(false);
           if (negativeSpaceRef.current !== 0) {
-            const space = negativeSpaceRef.current
-            const rootEl = scrollerRef.current!
+            const space = negativeSpaceRef.current;
+            const rootEl = scrollerRef.current!;
             const old = rootEl.scrollTop;
             flushSync(() => {
-              setNegativeSpace(0)
-            })
+              setNegativeSpace(0);
+            });
             rootEl.style.overflow = "hidden";
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
             // FIXME: safari scroll workaround
-            rootEl.scrollTo({ top: old + space + 1, behavior: 'smooth' })
+            rootEl.scrollTo({ top: old + space + 1, behavior: "smooth" });
             // console.log('flush stash ' + space)
           }
-        }, hasInteractionBefore - now)
+        }, hasInteractionBefore - now);
         return () => {
-          clearTimeout(id)
-        }
+          clearTimeout(id);
+        };
       }
-      return
+      return;
     } else {
-      setHasInteraction(false)
+      setHasInteraction(false);
       if (negativeSpaceRef.current !== 0) {
-        const space = negativeSpaceRef.current
-        const rootEl = scrollerRef.current!
+        const space = negativeSpaceRef.current;
+        const rootEl = scrollerRef.current!;
         const old = rootEl.scrollTop;
         flushSync(() => {
-          setNegativeSpace(0)
-        })
+          setNegativeSpace(0);
+        });
         rootEl.style.overflow = "hidden";
         rootEl.scrollTop = old + space;
         rootEl.style.overflow = "auto";
         // FIXME: safari scroll workaround
-        rootEl.scrollTo({ top: old + space + 1, behavior: 'smooth' })
+        rootEl.scrollTo({ top: old + space + 1, behavior: "smooth" });
       }
     }
-  }, [hasInteractionBefore, negativeSpaceRef, setHasInteraction, setNegativeSpace])
+  }, [
+    hasInteractionBefore,
+    negativeSpaceRef,
+    setHasInteraction,
+    setNegativeSpace,
+  ]);
 
   const onSizeUpdate = useEvent((newObjectHeight: number, index: number) => {
-    const oldEntry = dataStates.find(i => i.index === index)
+    const oldEntry = dataStates.find((i) => i.index === index);
     if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
-      return
+      return;
     }
 
-    const targetIndex = dataStates.findIndex(i => i.index === currentBase) + 1
-    const originalTargetBase = dataStates[targetIndex] != null && currentOffset !== 0 ? dataStates[targetIndex].index : currentBase
-    const originalTargetOffset = dataStates[targetIndex] != null && currentOffset !== 0 ? currentOffset - getHeight(dataStates[targetIndex - 1]) : currentOffset
-    const selectorRes = onSelectAnchor?.(dataStates, originalTargetBase, originalTargetOffset, height, lastInteractPosition.current)
-    const targetBase = selectorRes?.[0] ?? originalTargetBase
-    const targetOffset = selectorRes?.[1] ?? originalTargetOffset
-    const oldScrollDistance = getDistanceWithIndexAndOffset(dataStates, currentBase, currentOffset)
-    const oldDistance = getDistanceWithIndexAndOffset(dataStates, targetBase, targetOffset)
+    const targetIndex =
+      dataStates.findIndex((i) => i.index === currentBase) + 1;
+    const originalTargetBase =
+      dataStates[targetIndex] != null && currentOffset !== 0
+        ? dataStates[targetIndex].index
+        : currentBase;
+    const originalTargetOffset =
+      dataStates[targetIndex] != null && currentOffset !== 0
+        ? currentOffset - getHeight(dataStates[targetIndex - 1])
+        : currentOffset;
+    const selectorRes = onSelectAnchor?.(
+      dataStates,
+      originalTargetBase,
+      originalTargetOffset,
+      height,
+      lastInteractPosition.current
+    );
+    const targetBase = selectorRes?.[0] ?? originalTargetBase;
+    const targetOffset = selectorRes?.[1] ?? originalTargetOffset;
+    const oldScrollDistance = getDistanceWithIndexAndOffset(
+      dataStates,
+      currentBase,
+      currentOffset
+    );
+    const oldDistance = getDistanceWithIndexAndOffset(
+      dataStates,
+      targetBase,
+      targetOffset
+    );
     const newStates = dataStates.map((e) => {
       if (e.index !== index) {
         return e;
@@ -289,72 +340,85 @@ export const DynamicScroll = <T extends DataBase>(
           size: newObjectHeight,
         };
       }
-    })
-    const newDistance = getDistanceWithIndexAndOffset(newStates, targetBase, targetOffset)
-    const [newBase, newOffset] = getIndexAndOffsetWithDistance(newStates, oldScrollDistance + newDistance - oldDistance)
+    });
+    const newDistance = getDistanceWithIndexAndOffset(
+      newStates,
+      targetBase,
+      targetOffset
+    );
+    const [newBase, newOffset] = getIndexAndOffsetWithDistance(
+      newStates,
+      oldScrollDistance + newDistance - oldDistance
+    );
 
     if (hasInteraction) {
       flushSync(() => {
-        setNegativeSpace(num => num + (newDistance - oldDistance))
+        setNegativeSpace((num) => num + (newDistance - oldDistance));
         setDataStates(newStates);
         setCurrentBase(newBase);
         setCurrentOffset(newOffset);
-      })
-      onProgressEvent(newBase, newOffset)
+      });
+      onProgressEvent(newBase, newOffset);
     } else {
-      const space = negativeSpace + (newDistance - oldDistance)
-      const rootEl = scrollerRef.current!
+      const space = negativeSpace + (newDistance - oldDistance);
+      const rootEl = scrollerRef.current!;
       const old = rootEl.scrollTop;
       flushSync(() => {
         setDataStates(newStates);
         setNegativeSpace(0);
         setCurrentBase(newBase);
         setCurrentOffset(newOffset);
-      })
+      });
       rootEl.style.overflow = "hidden";
       rootEl.scrollTop = old + space;
       rootEl.style.overflow = "auto";
-      onProgressEvent(newBase, newOffset)
+      onProgressEvent(newBase, newOffset);
     }
-  })
+  });
 
   const onInsert = useCallback(
     (
       position: "prev" | "next",
-      entries: [el: ReactElement<DynamicChildElementProps>, data: T][] | typeof END_OF_STREAM
+      entries:
+        | [el: ReactElement<DynamicChildElementProps>, data: T][]
+        | typeof END_OF_STREAM
     ) => {
-
       const rootEl = scrollerRef.current!;
-      const initialHeightSum = dataStateRef.current.reduce((prev, curr) => getHeight(curr) + prev , 0)
-      const isInitialInsert = initialHeightSum < heightRef.current
+      const initialHeightSum = dataStateRef.current.reduce(
+        (prev, curr) => getHeight(curr) + prev,
+        0
+      );
+      const isInitialInsert = initialHeightSum < heightRef.current;
 
       if (entries === END_OF_STREAM) {
-        if (position === 'next' && !footEndedRef.current) {
-          setFootEnded(true)
+        if (position === "next" && !footEndedRef.current) {
+          setFootEnded(true);
         }
-        if (position === 'prev' && !headEndedRef.current) {
-          const needScrollCorrection = currentOffsetRef.current < 0 && currentBaseRef.current === dataStateRef.current[0]?.index
+        if (position === "prev" && !headEndedRef.current) {
+          const needScrollCorrection =
+            currentOffsetRef.current < 0 &&
+            currentBaseRef.current === dataStateRef.current[0]?.index;
           if (hasInteractionRef.current) {
             flushSync(() => {
-              setHeadEnded(true)
-              setNegativeSpace(val => val - prependSpace)
+              setHeadEnded(true);
+              setNegativeSpace((val) => val - prependSpace);
               if (needScrollCorrection) {
-                setCurrentOffset(0)
+                setCurrentOffset(0);
               }
-            })
+            });
           } else {
             const old = rootEl.scrollTop;
             flushSync(() => {
-              setHeadEnded(true)
+              setHeadEnded(true);
               if (needScrollCorrection) {
-                setCurrentOffset(0)
+                setCurrentOffset(0);
               }
-            })
+            });
             // overscroll
             rootEl.scrollTop = old - prependSpace;
           }
         }
-        return
+        return;
       }
       const heightSum = entries
         .map((e) => e[1].initialHeight)
@@ -420,24 +484,24 @@ export const DynamicScroll = <T extends DataBase>(
           setCurrentOffset(newOffset);
         }
 
-        setMinMaxLiveViewport(heightSum + preloadRange)
+        setMinMaxLiveViewport(heightSum + preloadRange);
       });
 
-      onProgressEvent(currentBaseRef.current, currentOffsetRef.current)
+      onProgressEvent(currentBaseRef.current, currentOffsetRef.current);
 
       if (position === "next" && isInitialInsert) {
         // we may have a wrong scroll if append space is 0
         // so we force set here
 
-        flushSync(() => {})
-        rootEl.scrollTop = prependSpace
+        flushSync(() => {});
+        rootEl.scrollTop = prependSpace;
       }
       // debugger
       if (position === "prev") {
         if (hasInteractionRef.current) {
           flushSync(() => {
-            setNegativeSpace(val => val + heightSum)
-          })
+            setNegativeSpace((val) => val + heightSum);
+          });
         } else {
           const old = rootEl.scrollTop;
           // rootEl.style.overflow = "hidden";
@@ -446,18 +510,35 @@ export const DynamicScroll = <T extends DataBase>(
         }
       }
     },
-    [currentBaseRef, currentOffsetRef, dataStateRef, footEndedRef, hasInteractionRef, headEndedRef, heightRef, onProgressEvent, preloadRange, prependSpace, setCurrentBase, setCurrentOffset, setDataStates, setFootEnded, setHeadEnded, setNegativeSpace]
+    [
+      currentBaseRef,
+      currentOffsetRef,
+      dataStateRef,
+      footEndedRef,
+      hasInteractionRef,
+      headEndedRef,
+      heightRef,
+      onProgressEvent,
+      preloadRange,
+      prependSpace,
+      setCurrentBase,
+      setCurrentOffset,
+      setDataStates,
+      setFootEnded,
+      setHeadEnded,
+      setNegativeSpace,
+    ]
   );
 
   // calculate whether we need to fetch more
 
   let currentScroll = 0;
 
-  let itemIndex: number = -1
+  let itemIndex: number = -1;
   for (let i = 0; i < dataStates.length; i++) {
     if (currentBase === dataStates[i].index) {
       currentScroll += currentOffset;
-      itemIndex = i
+      itemIndex = i;
       break;
     } else {
       currentScroll += getHeight(dataStates[i]);
@@ -465,101 +546,115 @@ export const DynamicScroll = <T extends DataBase>(
   }
 
   const fetchNext =
-    !footEnded && (dataStates.length === 0 || currentScroll + height >= heightSum - preloadRange);
-  const fetchPrev =
-    !headEnded &&
-    !fetchNext &&
-    currentScroll < preloadRange;
+    !footEnded &&
+    (dataStates.length === 0 ||
+      currentScroll + height >= heightSum - preloadRange);
+  const fetchPrev = !headEnded && !fetchNext && currentScroll < preloadRange;
 
-  const trimPrev = !(fetchNext || fetchPrev ) && currentScroll > maxLiveViewport 
-  const trimNext = !(trimPrev || fetchNext || fetchPrev ) && heightSum - currentScroll - height > maxLiveViewport
+  const trimPrev = !(fetchNext || fetchPrev) && currentScroll > maxLiveViewport;
+  const trimNext =
+    !(trimPrev || fetchNext || fetchPrev) &&
+    heightSum - currentScroll - height > maxLiveViewport;
 
-  const trimItemIndex = (trimPrev || trimNext) ? itemIndex : 0
-  const trimOffset = (trimPrev || trimNext) ? currentOffset : 0
-  const trimHasInteraction = (trimPrev || trimNext) ? hasInteraction : false
+  const trimItemIndex = trimPrev || trimNext ? itemIndex : 0;
+  const trimOffset = trimPrev || trimNext ? currentOffset : 0;
+  const trimHasInteraction = trimPrev || trimNext ? hasInteraction : false;
 
-  const [observer, setObserver] = useState<ResizeObserver>()
-  const [entries, setEntries] = useState<[el: HTMLElement, index: number][]>([])
+  const [observer, setObserver] = useState<ResizeObserver>();
+  const [entries, setEntries] = useState<[el: HTMLElement, index: number][]>(
+    []
+  );
 
   const observerHandlerCurrent: ResizeObserverCallback = (eventEntries) => {
     for (const ee of eventEntries) {
-      const item = entries.find(e => e[0] === ee.target)
+      const item = entries.find((e) => e[0] === ee.target);
       if (item != null) {
-        onSizeUpdate(ee.contentRect.height, item[1])
+        onSizeUpdate(ee.contentRect.height, item[1]);
       }
     }
-  }
+  };
 
-  const observerHandlerRef = useRef(observerHandlerCurrent)
+  const observerHandlerRef = useRef(observerHandlerCurrent);
   useLayoutEffect(() => {
-    observerHandlerRef.current = observerHandlerCurrent
-  })
+    observerHandlerRef.current = observerHandlerCurrent;
+  });
 
-  const observerHandler: ResizeObserverCallback = useCallback((entries, observer) => {
-    observerHandlerRef.current?.(entries, observer)
-  }, [])
-
+  const observerHandler: ResizeObserverCallback = useCallback(
+    (entries, observer) => {
+      observerHandlerRef.current?.(entries, observer);
+    },
+    []
+  );
 
   useEffect(() => {
-    const newObserver = new ResizeObserver(observerHandler)
-    setObserver(newObserver)
+    const newObserver = new ResizeObserver(observerHandler);
+    setObserver(newObserver);
     return () => {
-      newObserver.disconnect()
-    }
-  }, [observerHandler])
-
+      newObserver.disconnect();
+    };
+  }, [observerHandler]);
 
   useEffect(() => {
     if (observer == null) {
-      return
+      return;
     }
 
     for (const [el] of entries) {
-      observer.observe(el)
+      observer.observe(el);
     }
 
     return () => {
       for (const [el] of entries) {
-        observer.unobserve(el)
+        observer.unobserve(el);
       }
-    }
-  }, [entries, observer])
+    };
+  }, [entries, observer]);
 
   const resizeRef = useCallback((el: HTMLElement | null, index: number) => {
     setEntries((entries) => {
-      const entryIndex = entries.findIndex(e => e[1] === index)
+      const entryIndex = entries.findIndex((e) => e[1] === index);
       if (el) {
         if (entryIndex >= 0) {
-          return [...entries.slice(0, entryIndex), [el, index], ...entries.slice(index + 1)]
+          return [
+            ...entries.slice(0, entryIndex),
+            [el, index],
+            ...entries.slice(index + 1),
+          ];
         } else {
-          return [...entries.slice(0), [el, index]]
+          return [...entries.slice(0), [el, index]];
         }
       } else {
-        return entries.filter(i => i[1] !== index)
+        return entries.filter((i) => i[1] !== index);
       }
-    })
-  }, [])
+    });
+  }, []);
 
-  const createFactory = useCallback((direction: 'next' | 'prev', boundaryIndex: number): EntryFactory => (index: number, size: number) => {
-    if (direction === 'next') {
-      return {
-        resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
-        updateSize: (newHeight) => onSizeUpdate(newHeight, boundaryIndex + index + 1),
-        index: boundaryIndex + index + 1
-      }
-    } else {
-      return {
-        resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
-        updateSize: (newHeight) => onSizeUpdate(newHeight, boundaryIndex - size + index),
-        index: boundaryIndex - size + index
-      }
-    }
-  }, [onSizeUpdate, resizeRef])
+  const createFactory = useCallback(
+    (direction: "next" | "prev", boundaryIndex: number): EntryFactory =>
+      (index: number, size: number) => {
+        if (direction === "next") {
+          return {
+            resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
+            updateSize: (newHeight) =>
+              onSizeUpdate(newHeight, boundaryIndex + index + 1),
+            index: boundaryIndex + index + 1,
+          };
+        } else {
+          return {
+            resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
+            updateSize: (newHeight) =>
+              onSizeUpdate(newHeight, boundaryIndex - size + index),
+            index: boundaryIndex - size + index,
+          };
+        }
+      },
+    [onSizeUpdate, resizeRef]
+  );
 
   useEffect(() => {
     if (height === 0) {
       // not loaded yet
-      return
+      return;
     }
 
     if (fetchNext) {
@@ -567,7 +662,12 @@ export const DynamicScroll = <T extends DataBase>(
       const signal = controller.signal;
       const lastIndex = dataStates[dataStates.length - 1]?.index;
       const index = lastIndex != null ? lastIndex : -1;
-      const p = onLoadMoreEvent('next', createFactory('next', index), dataStates, signal);
+      const p = onLoadMoreEvent(
+        "next",
+        createFactory("next", index),
+        dataStates,
+        signal
+      );
       p.then((entries) => !signal.aborted && onInsert("next", entries));
       return () => {
         controller.abort();
@@ -576,62 +676,69 @@ export const DynamicScroll = <T extends DataBase>(
       const controller = new AbortController();
       const signal = controller.signal;
       const index = dataStates[0]?.index ?? 0;
-      const p = onLoadMoreEvent('prev', createFactory('prev', index), dataStates, signal);
+      const p = onLoadMoreEvent(
+        "prev",
+        createFactory("prev", index),
+        dataStates,
+        signal
+      );
       p.then((entries) => !signal.aborted && onInsert("prev", entries));
       return () => {
         controller.abort();
       };
     } else if (trimPrev) {
       const id = setTimeout(() => {
+        let length = 0;
+        let removeUntil = 0;
 
-        let length = 0
-        let removeUntil = 0
-  
         for (let i = trimItemIndex; i >= 0; i--) {
-          let newLength
+          let newLength;
           if (i === trimItemIndex) {
-            newLength = length + trimOffset
+            newLength = length + trimOffset;
           } else {
-            newLength = length +  getHeight(dataStates[i])
+            newLength = length + getHeight(dataStates[i]);
           }
           if (newLength >= maxLiveViewport) {
-            break
+            break;
           }
-          removeUntil = i
-          length = newLength
+          removeUntil = i;
+          length = newLength;
         }
 
         // we cannot remove everything
         if (removeUntil === dataStates.length) {
-          removeUntil--
+          removeUntil--;
         }
 
-        let extraTrim = 0
-    
+        let extraTrim = 0;
+
         if (headEnded) {
-          extraTrim = -prependSpace
+          extraTrim = -prependSpace;
         }
-  
-        const sumDiff = dataStates.slice(0, removeUntil).map(i => getHeight(i)).reduce((p, v) => p + v, 0)
-  
-        console.log(extraTrim, sumDiff)
+
+        const sumDiff = dataStates
+          .slice(0, removeUntil)
+          .map((i) => getHeight(i))
+          .reduce((p, v) => p + v, 0);
+
+        console.log(extraTrim, sumDiff);
 
         // remove element
         if (trimHasInteraction) {
           flushSync(() => {
             if (headEnded) {
-              setHeadEnded(false)
+              setHeadEnded(false);
             }
-            setDataStates(ds => ds.slice(removeUntil))
-            setNegativeSpace(val => val - (sumDiff + extraTrim))
-          })
+            setDataStates((ds) => ds.slice(removeUntil));
+            setNegativeSpace((val) => val - (sumDiff + extraTrim));
+          });
         } else {
           flushSync(() => {
             if (headEnded) {
-              setHeadEnded(false)
+              setHeadEnded(false);
             }
-            setDataStates(ds => ds.slice(removeUntil))
-          })
+            setDataStates((ds) => ds.slice(removeUntil));
+          });
           if (scrollerRef.current) {
             const old = scrollerRef.current.scrollTop;
             // rootEl.style.overflow = "hidden";
@@ -639,54 +746,80 @@ export const DynamicScroll = <T extends DataBase>(
             // rootEl.style.overflow = "auto";
           }
         }
-      })
+      });
       return () => {
-        clearTimeout(id)
-      }
+        clearTimeout(id);
+      };
     } else if (trimNext) {
       const id = setTimeout(() => {
+        let length = 0;
+        let removeAfter = 0;
 
-        let length = 0
-        let removeAfter = 0
-  
         for (let i = trimItemIndex; i < dataStates.length - 1; i++) {
-          let newLength
+          let newLength;
           if (i === trimItemIndex) {
-            newLength = getHeight(dataStates[i]) - trimOffset
+            newLength = getHeight(dataStates[i]) - trimOffset;
           } else {
-            newLength = length +  getHeight(dataStates[i])
+            newLength = length + getHeight(dataStates[i]);
           }
           if (newLength >= maxLiveViewport) {
-            break
+            break;
           }
-          removeAfter = i
-          length = newLength
+          removeAfter = i;
+          length = newLength;
         }
-        
 
         // we cannot remove everything
         if (removeAfter === 0) {
-          removeAfter = 1
+          removeAfter = 1;
         }
         if (footEnded) {
-          setFootEnded(false)
+          setFootEnded(false);
         }
 
-        setDataStates(ds => ds.slice(0, removeAfter))
-      })
+        setDataStates((ds) => ds.slice(0, removeAfter));
+      });
       return () => {
-        clearTimeout(id)
-      }
+        clearTimeout(id);
+      };
     }
-  }, [dataStates, onInsert, fetchNext, fetchPrev, onLoadMoreEvent, onSizeUpdate, trimPrev, trimNext, trimHasInteraction, trimItemIndex, maxLiveViewport, trimOffset, setDataStates, setNegativeSpace, heightSum, resizeRef, headEnded, prependSpace, setHeadEnded, footEnded, setFootEnded, height, createFactory]);
+  }, [
+    dataStates,
+    onInsert,
+    fetchNext,
+    fetchPrev,
+    onLoadMoreEvent,
+    onSizeUpdate,
+    trimPrev,
+    trimNext,
+    trimHasInteraction,
+    trimItemIndex,
+    maxLiveViewport,
+    trimOffset,
+    setDataStates,
+    setNegativeSpace,
+    heightSum,
+    resizeRef,
+    headEnded,
+    prependSpace,
+    setHeadEnded,
+    footEnded,
+    setFootEnded,
+    height,
+    createFactory,
+  ]);
 
-  const elements = dataStates.map((s) => <div key={s.index} style={{ height: `${getHeight(s)}px` }}>{s.el}</div>);
+  const elements = dataStates.map((s) => (
+    <div key={s.index} style={{ height: `${getHeight(s)}px` }}>
+      {s.el}
+    </div>
+  ));
 
   const onScroll: UIEventHandler<HTMLDivElement> = (ev) => {
     if (hasFocusedInteraction) {
-      setHasInteractionBefore(Infinity)
+      setHasInteractionBefore(Infinity);
     } else {
-      setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY)
+      setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY);
     }
 
     if (dataStates.length === 0) {
@@ -696,10 +829,10 @@ export const DynamicScroll = <T extends DataBase>(
     let pos = ev.currentTarget.scrollTop;
 
     if (pos < 0) {
-      ev.currentTarget.style.overflow = 'hidden'
-      ev.currentTarget.scrollTop = 0
-      ev.currentTarget.style.overflow = 'auto'
-      pos = 0
+      ev.currentTarget.style.overflow = "hidden";
+      ev.currentTarget.scrollTop = 0;
+      ev.currentTarget.style.overflow = "auto";
+      pos = 0;
     }
 
     // at pre-position
@@ -710,21 +843,21 @@ export const DynamicScroll = <T extends DataBase>(
       if (headEnded) {
         // force commit
         flushSync(() => {
-          setNegativeSpace(0)
+          setNegativeSpace(0);
           setCurrentOffset(0);
           setCurrentBase(newBase.index);
-        })
-        ev.currentTarget.style.overflow = 'hidden'
-        ev.currentTarget.scrollTop = 0
-        ev.currentTarget.style.overflow = 'auto'
+        });
+        ev.currentTarget.style.overflow = "hidden";
+        ev.currentTarget.scrollTop = 0;
+        ev.currentTarget.style.overflow = "auto";
         // FIXME: safari scroll workaround
-        ev.currentTarget.scrollTo({ top: 1, behavior: 'smooth' })
-        onProgressEvent(newBase.index, 0)
-        return
+        ev.currentTarget.scrollTo({ top: 1, behavior: "smooth" });
+        onProgressEvent(newBase.index, 0);
+        return;
       }
       setCurrentOffset(offset);
       setCurrentBase(newBase.index);
-      onProgressEvent(newBase.index, offset)
+      onProgressEvent(newBase.index, offset);
       // console.log(offset);
       // console.log(newBase.index);
       return;
@@ -736,7 +869,7 @@ export const DynamicScroll = <T extends DataBase>(
       if (offset + height > pos) {
         setCurrentOffset(pos - offset);
         setCurrentBase(item.index);
-        onProgressEvent(item.index, pos - offset)
+        onProgressEvent(item.index, pos - offset);
         // console.log(pos - offset);
         // console.log(item.index);
         return;
@@ -747,44 +880,72 @@ export const DynamicScroll = <T extends DataBase>(
     const item = dataStates[dataStates.length - 1];
     setCurrentOffset(pos - offset + getHeight(item));
     setCurrentBase(item.index);
-    onProgressEvent(item.index, pos - offset + getHeight(item))
+    onProgressEvent(item.index, pos - offset + getHeight(item));
     // console.log(pos - offset + getHeight(item));
     // console.log(item.index);
   };
 
   const onTouchMove: TouchEventHandler<HTMLDivElement> = (ev) => {
-    const baseY = ev.currentTarget.getBoundingClientRect().top
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
-  }
+    const baseY = ev.currentTarget.getBoundingClientRect().top;
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
+  };
   const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {
     // console.log(ev)
-    setHasFocusedInteraction(true)
-    setHasInteractionBefore(Infinity)
-    const baseY = ev.currentTarget.getBoundingClientRect().top
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
-  }
+    setHasFocusedInteraction(true);
+    setHasInteractionBefore(Infinity);
+    const baseY = ev.currentTarget.getBoundingClientRect().top;
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
+  };
   const onTouchEnd: TouchEventHandler<HTMLDivElement> = (ev) => {
     // console.log(ev)
-    stopInteractionShortly(ev)
-    const baseY = ev.currentTarget.getBoundingClientRect().top
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY
-  }
+    stopInteractionShortly(ev);
+    const baseY = ev.currentTarget.getBoundingClientRect().top;
+    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
+  };
 
   const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = () => {
     // console.log(ev)
-    setHasFocusedInteraction(false)
-    setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY)
-  }
-
+    setHasFocusedInteraction(false);
+    setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY);
+  };
 
   return (
-    <div ref={onRefed} style={style} className={'dyn root' + (className ? `  ${className}` : '')} onScroll={onScroll} onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-      <div style={{ height: `${currentPrependSpace}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: "-1", overflow: 'hidden' }}>
+    <div
+      {...props}
+      ref={onRefed}
+      style={style}
+      className={"dyn root" + (className ? `  ${className}` : "")}
+      onScroll={onScroll}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      <div
+        style={{
+          height: `${currentPrependSpace}px`,
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: "-1",
+          overflow: "hidden",
+        }}
+      >
         {prependContent}
       </div>
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
-      <div style={{ height: `${currentAppendSpace}px`, position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: "-1", overflow: 'hidden' }} >
+      <div
+        style={{
+          height: `${currentAppendSpace}px`,
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: "-1",
+          overflow: "hidden",
+        }}
+      >
         {appendContent}
       </div>
     </div>
