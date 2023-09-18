@@ -61,6 +61,11 @@ export interface AnchorSelector<Data extends DataBase> {
   ): [index: number, offset: number];
 }
 
+function fixFreezingScrollBar (el: HTMLElement, scrollPos: number) {
+  el.scrollTop = scrollPos + 1
+  el.scrollTo({ top: scrollPos });
+}
+
 interface RawDynamicScrollProps<Data extends DataBase> {
   prependSpace?: number;
   appendSpace?: number;
@@ -264,7 +269,7 @@ export const DynamicScroll = <T extends DataBase>({
             rootEl.scrollTop = old + space;
             rootEl.style.overflow = "auto";
             // FIXME: safari scroll workaround
-            rootEl.scrollTo({ top: old + space + 1, behavior: "smooth" });
+            fixFreezingScrollBar(rootEl, old + space);
             // console.log('flush stash ' + space)
           }
         }, hasInteractionBefore - now);
@@ -286,7 +291,7 @@ export const DynamicScroll = <T extends DataBase>({
         rootEl.scrollTop = old + space;
         rootEl.style.overflow = "auto";
         // FIXME: safari scroll workaround
-        rootEl.scrollTo({ top: old + space + 1, behavior: "smooth" });
+        fixFreezingScrollBar(rootEl, old + space);
       }
     }
   }, [
@@ -851,7 +856,7 @@ export const DynamicScroll = <T extends DataBase>({
         ev.currentTarget.scrollTop = 0;
         ev.currentTarget.style.overflow = "auto";
         // FIXME: safari scroll workaround
-        ev.currentTarget.scrollTo({ top: 1, behavior: "smooth" });
+        fixFreezingScrollBar(ev.currentTarget, 0);
         onProgressEvent(newBase.index, 0);
         return;
       }
