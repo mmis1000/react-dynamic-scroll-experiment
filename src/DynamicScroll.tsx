@@ -61,8 +61,8 @@ export interface AnchorSelector<Data extends DataBase> {
   ): [index: number, offset: number];
 }
 
-function fixFreezingScrollBar (el: HTMLElement, scrollPos: number) {
-  el.scrollTop = scrollPos + 1
+function fixFreezingScrollBar(el: HTMLElement, scrollPos: number) {
+  el.scrollTop = scrollPos + 1;
   el.scrollTo({ top: scrollPos });
 }
 
@@ -351,6 +351,35 @@ export const DynamicScroll = <T extends DataBase>({
       targetBase,
       targetOffset
     );
+
+    const oldFullHeight = dataStates
+      .map((i) => getHeight(i))
+      .reduce((p, v) => p + v, 0);
+    const preRemovalPending =
+      oldDistance > Math.max(minMaxLiveViewport, maxLiveViewport);
+    const postRemovalPending =
+      oldFullHeight - oldDistance - height >
+      Math.max(minMaxLiveViewport, maxLiveViewport);
+
+    const newFullHeight = newStates
+      .map((i) => getHeight(i))
+      .reduce((p, v) => p + v, 0);
+
+    const preDist = newDistance;
+    const postDist = newFullHeight - height - newDistance;
+
+    const insertBefore = newDistance > oldDistance;
+
+    const newSafeUnloadDist = insertBefore
+      ? preRemovalPending
+        ? minMaxLiveViewport
+        : Math.max(preDist, minMaxLiveViewport)
+      : postRemovalPending
+      ? minMaxLiveViewport
+      : Math.max(postDist, minMaxLiveViewport);
+
+    // console.log(minMaxLiveViewport, newSafeUnloadDist);
+
     const [newBase, newOffset] = getIndexAndOffsetWithDistance(
       newStates,
       oldScrollDistance + newDistance - oldDistance
@@ -358,6 +387,7 @@ export const DynamicScroll = <T extends DataBase>({
 
     if (hasInteraction) {
       flushSync(() => {
+        setMinMaxLiveViewport(newSafeUnloadDist)
         setNegativeSpace((num) => num + (newDistance - oldDistance));
         setDataStates(newStates);
         setCurrentBase(newBase);
@@ -369,6 +399,7 @@ export const DynamicScroll = <T extends DataBase>({
       const rootEl = scrollerRef.current!;
       const old = rootEl.scrollTop;
       flushSync(() => {
+        setMinMaxLiveViewport(newSafeUnloadDist)
         setDataStates(newStates);
         setNegativeSpace(0);
         setCurrentBase(newBase);
@@ -570,26 +601,14 @@ export const DynamicScroll = <T extends DataBase>({
     []
   );
 
-  const observerHandlerCurrent: ResizeObserverCallback = (eventEntries) => {
+  const observerHandler: ResizeObserverCallback = useEvent((eventEntries) => {
     for (const ee of eventEntries) {
       const item = entries.find((e) => e[0] === ee.target);
       if (item != null) {
         onSizeUpdate(ee.contentRect.height, item[1]);
       }
     }
-  };
-
-  const observerHandlerRef = useRef(observerHandlerCurrent);
-  useLayoutEffect(() => {
-    observerHandlerRef.current = observerHandlerCurrent;
   });
-
-  const observerHandler: ResizeObserverCallback = useCallback(
-    (entries, observer) => {
-      observerHandlerRef.current?.(entries, observer);
-    },
-    []
-  );
 
   useEffect(() => {
     const newObserver = new ResizeObserver(observerHandler);
