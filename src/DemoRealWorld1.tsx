@@ -18,6 +18,7 @@ interface PhotoItem {
   alt: string;
   photographer: string;
   photographer_url: string;
+  avg_color: string;
 }
 const getData = async (signal: AbortSignal, page: number, pageSize: number) => {
   const request = new Request(`${API_BASE}?page=${page}&per_page=${pageSize}`, {
@@ -46,14 +47,25 @@ const ImageElement = forwardRef<
     style?: CSSProperties;
     className?: string;
     children?: ReactNode;
+    data: PhotoItem;
   }
->(({ style, className, children }, ref) => {
+>(({ style, className, children, data }, ref) => {
+  const [loaded, setLoaded] = useState(false);
+
   return (
     <div
       ref={ref}
       style={{ ...(style ?? {}), display: "flex", justifyContent: "stretch" }}
       className={className ? "item " + className : "item"}
     >
+      <img
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(true)}
+        src={data.src.medium}
+        style={{ width: "100%" }}
+        width={400}
+        height={loaded ? undefined : 300}
+      />
       {children}
     </div>
   );
@@ -97,7 +109,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         : bound.data.itemIndex !== bound.data.pageSize - 1
     ) {
       // print remaining items in data field
-      fullItems = bound.data.items
+      fullItems = bound.data.items;
       items =
         direction === "prev"
           ? bound.data.items.slice(0, bound.data.itemIndex)
@@ -117,7 +129,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         currentPage,
         bound.data.pageSize
       );
-      fullItems =items = photos;
+      fullItems = items = photos;
       page = currentPage;
       pageSize = bound.data.pageSize;
       baseItemIndex = 0;
@@ -128,8 +140,11 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     }
 
     return items.map((data, index2, arr) => [
-      <ImageElement ref={factory(index2, arr.length).resizeRef}>
-        <img src={data.src.medium} style={{ width: "100%" }} />
+      <ImageElement
+        ref={factory(index2, arr.length).resizeRef}
+        style={{ backgroundColor: data.avg_color }}
+        data={data}
+      >
         <div className="index">
           page {page}, {baseItemIndex + index2 + 1}/{pageSize}
         </div>
@@ -144,7 +159,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         pageSize,
         items: fullItems,
         itemIndex: baseItemIndex + index2,
-        initialHeight: window.innerWidth / 3 * 4,
+        initialHeight: (window.innerWidth / 3) * 4,
       },
     ]);
   };
@@ -192,8 +207,8 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     <>
       <DynamicScroll
         className={className ? "real " + className : "real"}
-        prependSpace={3000}
-        appendSpace={3000}
+        prependSpace={100}
+        appendSpace={100}
         preloadRange={3000}
         prependContent="Loading..."
         appendContent="Loading..."
@@ -208,12 +223,13 @@ export function DemoRealWorld1({ className }: { className?: string }) {
           bottom: "1rem",
           padding: "1rem",
           background: "rgba(0, 0, 0, 0.2)",
-          color: 'white',
-          fontFamily: 'monospace',
-          whiteSpace: 'pre-wrap'
+          color: "white",
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap",
         }}
       >
-        Page: {currentPage}, {currentImage < 10 ? ' ' : ''}{currentImage} / {currentTotalImage}
+        Page: {currentPage}, {currentImage < 10 ? " " : ""}
+        {currentImage} / {currentTotalImage}
       </div>
     </>
   );

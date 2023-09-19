@@ -3,3 +3,12 @@
   overflow-anchor: none;
   overscroll-behavior-y: contain;
 }
+
+.dyn .spacing {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: -1;
+}

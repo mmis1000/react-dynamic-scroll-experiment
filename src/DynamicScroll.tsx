@@ -945,14 +945,11 @@ export const DynamicScroll = <T extends DataBase>({
       onTouchEnd={onTouchEnd}
     >
       <div
+        className="spacing"
         style={{
           height: `${currentPrependSpace}px`,
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: "-1",
-          overflow: "hidden",
+          background: prependContent ? 'white' : 'transparent',
+          zIndex: prependContent ? '1' : '-1',
         }}
       >
         {prependContent}
@@ -960,14 +957,11 @@ export const DynamicScroll = <T extends DataBase>({
       <div style={{ marginTop: `${-negativeSpace}px` }} />
       {elements}
       <div
+        className="spacing"
         style={{
           height: `${currentAppendSpace}px`,
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: "-1",
-          overflow: "hidden",
+          background: appendContent ? 'white' : 'transparent',
+          zIndex: appendContent ? '1' : '-1',
         }}
       >
         {appendContent}
