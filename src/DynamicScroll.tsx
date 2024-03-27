@@ -25,7 +25,7 @@ export interface DataEntry<T extends DataBase> {
   data: T;
 }
 
-export interface DynamicChildElementProps {}
+export interface DynamicChildElementProps { }
 
 export interface EntryFactory {
   (index: number, size: number): {
@@ -153,7 +153,8 @@ interface DynamicScrollContext<T extends DataBase> {
   prependSpace: number,
   appendSpace: number,
   // this absolute minimum range to keep loaded or it cause the system to unload itself
-  minMaxLiveViewport: number
+  minMaxLiveViewportPrev: number
+  minMaxLiveViewportNext: number
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
@@ -166,7 +167,7 @@ export const DynamicScroll = <T extends DataBase>({
   preloadRange = 1000,
   onLoadMore,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  onProgress = () => {},
+  onProgress = () => { },
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   prependContent,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -198,14 +199,16 @@ export const DynamicScroll = <T extends DataBase>({
     // recalculation of minMaxLiveViewport relies on this
     screenHeight: -1,
     // this is altered when insert new items/resize
-    minMaxLiveViewport: 0,
+    minMaxLiveViewportPrev: 0,
+    minMaxLiveViewportNext: 0,
     // this is altered when insert/remove new items/resize
     prependSpace: initialHeadLocked ? 0 : prependSpace,
     // this is altered when insert/remove new items/resize
     appendSpace: appendSpace,
   }))
 
-  const maxLiveViewport = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewport);
+  const maxLiveViewportPrev = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewportPrev);
+  const maxLiveViewportNext = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewportNext);
 
   const itemSizeSum = dynamicScrollContext.dataStates.reduce((p, c) => p + c.size, 0);
 
@@ -231,6 +234,9 @@ export const DynamicScroll = <T extends DataBase>({
       } else {
         el.scrollTop = newContainerOffset
       }
+
+      // trigger initial load
+      performCheck()
     } else if (screenHeight.current !== newSize) {
       // TODO: perform size change handling
       screenHeight.current = newSize
@@ -276,7 +282,7 @@ export const DynamicScroll = <T extends DataBase>({
     count: number
   } | {
     action: 'patch';
-    items:  Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
+    items: Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
   } | {
     action: 'forcedResync';
   }
@@ -284,28 +290,28 @@ export const DynamicScroll = <T extends DataBase>({
   const pendingJob = useRef<Job[]>([])
   const taskList = useRef<Task[]>([])
 
-  function appendJob (task: Job) {
+  function appendJob(task: Job) {
     pendingJob.current = [...pendingJob.current, task]
   }
-  function appendTask (task: Task) {
+  function appendTask(task: Task) {
     taskList.current = [...taskList.current, task]
   }
-  function removeTaskOfType (type: Task['action']) {
+  function removeTaskOfType(type: Task['action']) {
     taskList.current = taskList.current.filter(i => i.action !== type)
   }
-  function removeJobOfType (type: Job['action']) {
+  function removeJobOfType(type: Job['action']) {
     const toCancel = pendingJob.current.filter(i => i.action === type)
     pendingJob.current = pendingJob.current.filter(i => i.action !== type)
     for (const cancelled of toCancel) {
       cancelled.controller.abort()
     }
   }
-  
+
   const applyChanges = useEvent(() => {
     const el = elementRef.current
     if (!el) return
     if (taskList.current.length === 0) return
-  
+
     const currentContext = dynamicScrollContext
     const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
     const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
@@ -319,8 +325,8 @@ export const DynamicScroll = <T extends DataBase>({
 
     const sortedTask = tasks.slice(0).sort((i, j) => (i.action === 'patch' ? 1 : 0) - (j.action === 'patch' ? 1 : 0))
 
-    let tweakUnloadDistPrev = false
-    let tweakUnloadDistNext = false
+    let tweakUnloadDistPrev: 'grow' | 'reset' | null = null
+    let tweakUnloadDistNext: 'grow' | 'reset' | null = null
 
     for (const task of sortedTask) {
       console.log('execute', task, newDataStates)
@@ -333,25 +339,26 @@ export const DynamicScroll = <T extends DataBase>({
             console.warn('bad prepend', task)
             break
           }
-          tweakUnloadDistPrev = true
+          tweakUnloadDistPrev = 'grow'
           newDataStates = [...task.items, ...newDataStates]
           const heightSum = task.items.reduce((p, c) => p + c.size, 0)
           newPrependSpace -= heightSum
           break
         }
-        case 'append':{
+        case 'append': {
           if (task.items[0].index !== indexNext + 1) {
             // bad id
             console.warn('bad append', task)
             break
           }
-          tweakUnloadDistNext = true
+          tweakUnloadDistNext = 'grow'
           newDataStates = [...newDataStates, ...task.items]
           const heightSum = task.items.reduce((p, c) => p + c.size, 0)
           newAppendSpace -= heightSum
           break
         }
         case 'unloadPrev': {
+          tweakUnloadDistPrev = 'reset'
           const toUnload = Math.min(newDataStates.length - 1, task.count)
           const unloadedItems = newDataStates.slice(0, toUnload)
           const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
@@ -361,6 +368,7 @@ export const DynamicScroll = <T extends DataBase>({
           break
         }
         case 'unloadNext': {
+          tweakUnloadDistNext = 'reset'
           const toUnload = Math.min(newDataStates.length - 1, task.count)
           const unloadedItems = newDataStates.slice(newDataStates.length - toUnload, newDataStates.length)
           const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
@@ -370,6 +378,8 @@ export const DynamicScroll = <T extends DataBase>({
           break
         }
         case 'patch': {
+          tweakUnloadDistPrev = 'grow'
+          tweakUnloadDistNext = 'grow'
           const initialIndexAndOffset = getIndexAndOffsetWithDistance(newDataStates, currentScroll - newPrependSpace)
 
           const newItems = newDataStates.map(i => {
@@ -395,8 +405,9 @@ export const DynamicScroll = <T extends DataBase>({
     const distanceToHead = currentScroll - newPrependSpace
     const distanceToEnd = newPrependSpace + heightSum - (currentScroll + currentSize)
     console.log(distanceToEnd)
-    
-    const minMaxUnloadDistance = Math.max(tweakUnloadDistPrev ? distanceToHead : 0, tweakUnloadDistNext ? distanceToEnd : 0)
+
+    const minMaxUnloadDistancePrev = tweakUnloadDistPrev ? (tweakUnloadDistPrev === 'grow' ? distanceToHead : 0) : dynamicScrollContext.minMaxLiveViewportPrev
+    const minMaxUnloadDistanceNext = tweakUnloadDistNext ? (tweakUnloadDistNext === 'grow' ? distanceToEnd : 0) : dynamicScrollContext.minMaxLiveViewportNext
 
     if (isScrolling.current || headFixed) {
       flushSync(() => {
@@ -404,7 +415,8 @@ export const DynamicScroll = <T extends DataBase>({
           dataStates: newDataStates,
           prependSpace: newPrependSpace,
           appendSpace: footFixed ? appendSpace : newAppendSpace,
-          minMaxLiveViewport: minMaxUnloadDistance
+          minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
+          minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
       })
     } else {
@@ -416,7 +428,8 @@ export const DynamicScroll = <T extends DataBase>({
           dataStates: newDataStates,
           prependSpace: prependSpace,
           appendSpace: footFixed ? appendSpace : newAppendSpace,
-          minMaxLiveViewport: minMaxUnloadDistance
+          minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
+          minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
       })
 
@@ -433,7 +446,7 @@ export const DynamicScroll = <T extends DataBase>({
 
   useEffect(() => {
     let id: ReturnType<typeof requestAnimationFrame>
-    function tick () {
+    function tick() {
       applyChanges()
       id = requestAnimationFrame(tick)
     }
@@ -481,10 +494,10 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
 
-  const onScroll = () => {
+  const performCheck = () => {
     const el = elementRef.current
     if (!el) return
-  
+
     const currentContext = dynamicScrollContext
     const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
     const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
@@ -497,7 +510,10 @@ export const DynamicScroll = <T extends DataBase>({
     const indexNext = currentContext.dataStates.length > 0 ? currentContext.dataStates[currentContext.dataStates.length - 1].index : -1
 
     if (distanceToHead < preloadRange) {
-      if (pendingJob.current.find(i => i.action === 'loadPrev' && i.index === indexPrev) == null) {
+      if (
+        pendingJob.current.find(i => i.action === 'loadPrev' && i.index === indexPrev) == null
+        && taskList.current.find(i => i.action === 'prepend') == null
+      ) {
         removeJobOfType('loadPrev')
         removeTaskOfType('prepend')
         removeTaskOfType('unloadPrev')
@@ -530,7 +546,10 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
     if (distanceToEnd < preloadRange) {
-      if (pendingJob.current.find(i => i.action === 'loadNext' && i.index === indexNext) == null) {
+      if (
+        pendingJob.current.find(i => i.action === 'loadNext' && i.index === indexNext) == null
+        && taskList.current.find(i => i.action === 'append') == null
+      ) {
         removeJobOfType('loadNext')
         removeTaskOfType('append')
         removeTaskOfType('unloadNext')
@@ -563,8 +582,8 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
 
-    if (distanceToHead > maxLiveViewport) {
-      const toUnloadDist = distanceToHead - maxLiveViewport
+    if (distanceToHead > maxLiveViewportPrev) {
+      const toUnloadDist = distanceToHead - maxLiveViewportPrev
       let sum = 0
       let count = 0
       for (let i = 0; i < currentContext.dataStates.length; i++) {
@@ -579,8 +598,8 @@ export const DynamicScroll = <T extends DataBase>({
         count
       })
     }
-    if (distanceToEnd > maxLiveViewport) {
-      const toUnloadDist = distanceToEnd - maxLiveViewport
+    if (distanceToEnd > maxLiveViewportNext) {
+      const toUnloadDist = distanceToEnd - maxLiveViewportNext
       let sum = 0
       let count = 0
       for (let i = currentContext.dataStates.length - 1; i >= 0; i--) {
@@ -614,20 +633,20 @@ export const DynamicScroll = <T extends DataBase>({
       ref={elementRef}
       style={style}
       className={"dyn root" + (className ? `  ${className}` : "")}
-      onScroll={onScroll}
-      // onTouchStart={onTouchStart}
-      // onTouchMove={onTouchMove}
-      // onTouchEnd={onTouchEnd}
+      onScroll={performCheck}
+    // onTouchStart={onTouchStart}
+    // onTouchMove={onTouchMove}
+    // onTouchEnd={onTouchEnd}
     >
       <div style={stageStyle}>
 
       </div>
-      <div 
+      <div
         className={`container-${direction}`}
-        style={direction === 'y' 
-        ? { transform: `translateY(${dynamicScrollContext.prependSpace}px)` }
-        : { transform: `translateX(${dynamicScrollContext.prependSpace}px)`}
-      }>
+        style={direction === 'y'
+          ? { transform: `translateY(${dynamicScrollContext.prependSpace}px)` }
+          : { transform: `translateX(${dynamicScrollContext.prependSpace}px)` }
+        }>
         {elements}
       </div>
     </div>

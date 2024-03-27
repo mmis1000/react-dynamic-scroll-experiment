@@ -210,6 +210,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         prependSpace={100}
         appendSpace={100}
         preloadRange={3000}
+        maxLiveViewport={6000}
         prependContent="Loading..."
         appendContent="Loading..."
         onLoadMore={onLoadMore}
