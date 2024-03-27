@@ -1,5 +1,6 @@
 .dyn.root {
   overflow: auto;
+  position: relative;
   overflow-anchor: none;
   overscroll-behavior-y: contain;
 }
@@ -11,4 +12,15 @@
   justify-content: center;
   overflow: hidden;
   z-index: -1;
+}
+
+.dyn .container-x {
+  position: absolute;
+  height: 100%;
+  left: 0;
+}
+.dyn .container-y {
+  position: absolute;
+  width: 100%;
+  top: 0;
 }

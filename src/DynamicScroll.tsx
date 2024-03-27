@@ -1,18 +1,17 @@
+/* eslint-disable prefer-const */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   CSSProperties,
   ReactElement,
   ReactNode,
-  TouchEventHandler,
-  UIEventHandler,
-  useCallback,
   useEffect,
-  useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 import { flushSync } from "react-dom";
 import "./DynamicScroll.css";
-import { END_OF_STREAM, getHeight, useEvent } from "./DynamicScrollUtils";
+import { END_OF_STREAM, getHeight, useEvent, useObserveElements } from "./DynamicScrollUtils";
 
 export interface DataBase {
   index: number;
@@ -48,7 +47,7 @@ export interface LoadHandler<Data extends DataBase> {
 }
 
 export interface ProgressHandler<Data extends DataBase> {
-  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[]): void;
+  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[], signal: AbortSignal): void;
 }
 
 export interface AnchorSelector<Data extends DataBase> {
@@ -61,12 +60,17 @@ export interface AnchorSelector<Data extends DataBase> {
   ): [index: number, offset: number];
 }
 
+const TOLERANCE = 3
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function fixFreezingScrollBar(el: HTMLElement, scrollPos: number) {
   el.scrollTop = scrollPos + 1;
   el.scrollTo({ top: scrollPos });
 }
 
 interface RawDynamicScrollProps<Data extends DataBase> {
+  initialHeadLocked?: boolean;
+  initialFootLocked?: boolean
   prependSpace?: number;
   appendSpace?: number;
   preloadRange?: number;
@@ -82,6 +86,7 @@ interface RawDynamicScrollProps<Data extends DataBase> {
   prependContent?: ReactNode;
   appendContent?: ReactNode;
   onSelectAnchor?: AnchorSelector<Data>;
+  direction?: 'x' | 'y'
 }
 
 type DivProps = React.HTMLAttributes<HTMLDivElement>;
@@ -92,15 +97,7 @@ type DynamicScrollProps<Data extends DataBase> = Omit<
 > &
   RawDynamicScrollProps<Data>;
 
-const useRefState = <S,>(v: S | (() => S)) => {
-  const [state, setState] = useState<S>(v);
-  const ref = useRef(state);
-  useLayoutEffect(() => {
-    ref.current = state;
-  });
-  return [state, setState, ref] as const;
-};
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const INTERACTION_CHANGE_DELAY = 100;
 
 const getIndexAndOffsetWithDistance = (
@@ -151,820 +148,487 @@ const getDistanceWithIndexAndOffset = (
   // throw new Error('invalid index ' + index)
 };
 
+interface DynamicScrollContext<T extends DataBase> {
+  dataStates: DataEntry<T>[],
+  prependSpace: number,
+  appendSpace: number,
+  // this absolute minimum range to keep loaded or it cause the system to unload itself
+  minMaxLiveViewport: number
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
 export const DynamicScroll = <T extends DataBase>({
+  initialHeadLocked = false,
+  initialFootLocked = false,
   prependSpace = 0,
   appendSpace = 0,
   maxLiveViewport: maxLiveViewportProp = 3000,
   preloadRange = 1000,
   onLoadMore,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onProgress = () => {},
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   prependContent,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   appendContent,
   className,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onSelectAnchor,
   style,
+  direction = 'y',
   ...props
 }: DynamicScrollProps<T>) => {
-  const onLoadMoreEvent = useEvent(onLoadMore);
-  const [dataStates, setDataStates, dataStateRef] = useRefState<DataEntry<T>[]>(
-    []
-  );
+  // this is only used in event to check if screen size is changed,
+  // so we don't use state to store it
+  const screenHeight = useRef(-1)
 
-  const [minMaxLiveViewport, setMinMaxLiveViewport] = useState(0);
-  const maxLiveViewport = Math.max(maxLiveViewportProp, minMaxLiveViewport);
+  const [headFixed, setHeadFixed] = useState(initialHeadLocked);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [footFixed, setFootFixed] = useState(initialFootLocked);
 
-  const [currentBase, setCurrentBase, currentBaseRef] = useRefState<number>(0);
-  const [currentOffset, setCurrentOffset, currentOffsetRef] =
-    useRefState<number>(0);
+  // const [currentPrependSpace, setPrependSpace, prependSpaceRef] = useRefState(initialHeadLocked ? 0 : prependSpace);
+  // const [currentAppendSpace, setAppendSpace, appendSpaceRef] = useRefState(appendSpace);
 
-  // height detection
-  const [height, setHeight, heightRef] = useRefState(0);
+  const elementRef = useRef<HTMLDivElement>(null);
 
-  const [headEnded, setHeadEnded, headEndedRef] = useRefState(false);
-  const [footEnded, setFootEnded, footEndedRef] = useRefState(false);
+  const isScrolling = useRef(false)
 
-  const heightSum = dataStates
-    .map((i) => i.size ?? i.data.initialHeight)
-    .reduce((p, v) => p + v, 0);
+  const [dynamicScrollContext, setDynamicScrollContext] = useState<DynamicScrollContext<T>>(() => ({
+    dataStates: [],
+    // recalculation of minMaxLiveViewport relies on this
+    screenHeight: -1,
+    // this is altered when insert new items/resize
+    minMaxLiveViewport: 0,
+    // this is altered when insert/remove new items/resize
+    prependSpace: initialHeadLocked ? 0 : prependSpace,
+    // this is altered when insert/remove new items/resize
+    appendSpace: appendSpace,
+  }))
 
-  const currentPrependSpace = headEnded ? 0 : prependSpace;
-  const currentAppendSpace = Math.max(
-    footEnded ? 0 : appendSpace,
-    heightSum < height ? height : 0
-  );
+  const maxLiveViewport = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewport);
 
-  const onRefed = useCallback(
-    (el: HTMLDivElement) => {
-      if (el) {
-        el.scrollTop = prependSpace;
+  const itemSizeSum = dynamicScrollContext.dataStates.reduce((p, c) => p + c.size, 0);
+
+  const stageSize = dynamicScrollContext.prependSpace + itemSizeSum + dynamicScrollContext.appendSpace
+
+  const stageStyle = useMemo((): CSSProperties => {
+    return direction === 'y' ? {
+      height: stageSize + 'px'
+    } : {
+      width: stageSize + 'px'
+    }
+  }, [direction, stageSize])
+
+  const onSizeUpdate = useEvent((newSize: number) => {
+    if (screenHeight.current === -1) {
+      // perform initial setup
+      const newContainerOffset = prependSpace
+      const el = elementRef.current!
+      screenHeight.current = newSize
+
+      if (direction === 'x') {
+        el.scrollLeft = newContainerOffset
+      } else {
+        el.scrollTop = newContainerOffset
       }
-      scrollerRef.current = el;
-    },
-    [prependSpace]
-  );
-
-  const scrollerRef = useRef<HTMLDivElement>();
-
-  const lastInteractPosition = useRef(0);
-
-  // we don't want to unload content that we just loaded
-  // const minUnloadDistance = useRefState(0)
-
-  useLayoutEffect(() => {
-    const root = scrollerRef.current;
-    if (root) {
-      const cb: ResizeObserverCallback = () => {
-        const prevHeight = heightRef.current;
-        if (prevHeight === 0) {
-          flushSync(() => {
-            setHeight(root.offsetHeight);
-          });
-          root.scrollTop = prependSpace;
-        } else {
-          setHeight(root.offsetHeight);
-        }
-      };
-      const observer = new ResizeObserver(cb);
-      observer.observe(root);
-      return () => {
-        observer.disconnect();
-      };
+    } else if (screenHeight.current !== newSize) {
+      // TODO: perform size change handling
+      screenHeight.current = newSize
     }
-  }, [heightRef, prependSpace, setHeight]);
-
-  const [hasInteractionBefore, setHasInteractionBefore] = useState(0);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasFocusedInteraction, setHasFocusedInteraction] = useRefState(false);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [hasInteraction, setHasInteraction, hasInteractionRef] =
-    useRefState(false);
-  /** 0 ~ Infinity */
-  const [negativeSpace, setNegativeSpace, negativeSpaceRef] = useRefState(0);
-
-  const onProgressEvent = useEvent((index: number, offset: number) => {
-    const item = dataStates.find((i) => i.index === index);
-    if (!item) {
-      console.warn("emitted progess without item");
-      return;
-    }
-    onProgress(item, offset, dataStates);
-  });
+  })
 
   useEffect(() => {
-    const now = Date.now();
-    if (hasInteractionBefore > now) {
-      setHasInteraction(true);
-      if (hasInteractionBefore !== Infinity) {
-        const id = setTimeout(() => {
-          setHasInteraction(false);
-          if (negativeSpaceRef.current !== 0) {
-            const space = negativeSpaceRef.current;
-            const rootEl = scrollerRef.current!;
-            const old = rootEl.scrollTop;
-            flushSync(() => {
-              setNegativeSpace(0);
-            });
-            rootEl.style.overflow = "hidden";
-            rootEl.scrollTop = old + space;
-            rootEl.style.overflow = "auto";
-            // FIXME: safari scroll workaround
-            fixFreezingScrollBar(rootEl, old + space);
-            // console.log('flush stash ' + space)
-          }
-        }, hasInteractionBefore - now);
-        return () => {
-          clearTimeout(id);
-        };
-      }
-      return;
-    } else {
-      setHasInteraction(false);
-      if (negativeSpaceRef.current !== 0) {
-        const space = negativeSpaceRef.current;
-        const rootEl = scrollerRef.current!;
-        const old = rootEl.scrollTop;
-        flushSync(() => {
-          setNegativeSpace(0);
-        });
-        rootEl.style.overflow = "hidden";
-        rootEl.scrollTop = old + space;
-        rootEl.style.overflow = "auto";
-        // FIXME: safari scroll workaround
-        fixFreezingScrollBar(rootEl, old + space);
-      }
-    }
-  }, [
-    hasInteractionBefore,
-    negativeSpaceRef,
-    setHasInteraction,
-    setNegativeSpace,
-  ]);
-
-  const onSizeUpdate = useEvent((newObjectHeight: number, index: number) => {
-    const oldEntry = dataStates.find((i) => i.index === index);
-    if (oldEntry && getHeight(oldEntry) === newObjectHeight) {
-      return;
-    }
-
-    const targetIndex =
-      dataStates.findIndex((i) => i.index === currentBase) + 1;
-    const originalTargetBase =
-      dataStates[targetIndex] != null && currentOffset !== 0
-        ? dataStates[targetIndex].index
-        : currentBase;
-    const originalTargetOffset =
-      dataStates[targetIndex] != null && currentOffset !== 0
-        ? currentOffset - getHeight(dataStates[targetIndex - 1])
-        : currentOffset;
-    const selectorRes = onSelectAnchor?.(
-      dataStates,
-      originalTargetBase,
-      originalTargetOffset,
-      height,
-      lastInteractPosition.current
-    );
-    const targetBase = selectorRes?.[0] ?? originalTargetBase;
-    const targetOffset = selectorRes?.[1] ?? originalTargetOffset;
-    const oldScrollDistance = getDistanceWithIndexAndOffset(
-      dataStates,
-      currentBase,
-      currentOffset
-    );
-    const oldDistance = getDistanceWithIndexAndOffset(
-      dataStates,
-      targetBase,
-      targetOffset
-    );
-    const newStates = dataStates.map((e) => {
-      if (e.index !== index) {
-        return e;
-      } else {
-        return {
-          ...e,
-          size: newObjectHeight,
-        };
-      }
-    });
-    const newDistance = getDistanceWithIndexAndOffset(
-      newStates,
-      targetBase,
-      targetOffset
-    );
-
-    const oldFullHeight = dataStates
-      .map((i) => getHeight(i))
-      .reduce((p, v) => p + v, 0);
-    const preRemovalPending =
-      oldDistance > Math.max(minMaxLiveViewport, maxLiveViewport);
-    const postRemovalPending =
-      oldFullHeight - oldDistance - height >
-      Math.max(minMaxLiveViewport, maxLiveViewport);
-
-    const newFullHeight = newStates
-      .map((i) => getHeight(i))
-      .reduce((p, v) => p + v, 0);
-
-    const preDist = newDistance;
-    const postDist = newFullHeight - height - newDistance;
-
-    const insertBefore = newDistance > oldDistance;
-
-    const newSafeUnloadDist = insertBefore
-      ? preRemovalPending
-        ? minMaxLiveViewport
-        : Math.max(preDist, minMaxLiveViewport)
-      : postRemovalPending
-      ? minMaxLiveViewport
-      : Math.max(postDist, minMaxLiveViewport);
-
-    // console.log(minMaxLiveViewport, newSafeUnloadDist);
-
-    const [newBase, newOffset] = getIndexAndOffsetWithDistance(
-      newStates,
-      oldScrollDistance + newDistance - oldDistance
-    );
-
-    if (hasInteraction) {
-      flushSync(() => {
-        setMinMaxLiveViewport(newSafeUnloadDist)
-        setNegativeSpace((num) => num + (newDistance - oldDistance));
-        setDataStates(newStates);
-        setCurrentBase(newBase);
-        setCurrentOffset(newOffset);
-      });
-      onProgressEvent(newBase, newOffset);
-    } else {
-      const space = negativeSpace + (newDistance - oldDistance);
-      const rootEl = scrollerRef.current!;
-      const old = rootEl.scrollTop;
-      flushSync(() => {
-        setMinMaxLiveViewport(newSafeUnloadDist)
-        setDataStates(newStates);
-        setNegativeSpace(0);
-        setCurrentBase(newBase);
-        setCurrentOffset(newOffset);
-      });
-      rootEl.style.overflow = "hidden";
-      rootEl.scrollTop = old + space;
-      rootEl.style.overflow = "auto";
-      onProgressEvent(newBase, newOffset);
-    }
-  });
-
-  const onInsert = useCallback(
-    (
-      position: "prev" | "next",
-      entries:
-        | [el: ReactElement<DynamicChildElementProps>, data: T][]
-        | typeof END_OF_STREAM
-    ) => {
-      const rootEl = scrollerRef.current!;
-      const initialHeightSum = dataStateRef.current.reduce(
-        (prev, curr) => getHeight(curr) + prev,
-        0
-      );
-      const isInitialInsert = initialHeightSum < heightRef.current;
-
-      if (entries === END_OF_STREAM) {
-        if (position === "next" && !footEndedRef.current) {
-          setFootEnded(true);
-        }
-        if (position === "prev" && !headEndedRef.current) {
-          const needScrollCorrection =
-            currentOffsetRef.current < 0 &&
-            currentBaseRef.current === dataStateRef.current[0]?.index;
-          if (hasInteractionRef.current) {
-            flushSync(() => {
-              setHeadEnded(true);
-              setNegativeSpace((val) => val - prependSpace);
-              if (needScrollCorrection) {
-                setCurrentOffset(0);
-              }
-            });
-          } else {
-            const old = rootEl.scrollTop;
-            flushSync(() => {
-              setHeadEnded(true);
-              if (needScrollCorrection) {
-                setCurrentOffset(0);
-              }
-            });
-            // overscroll
-            rootEl.scrollTop = old - prependSpace;
-          }
-        }
-        return;
-      }
-      const heightSum = entries
-        .map((e) => e[1].initialHeight)
-        .reduce((p, v) => p + v, 0);
-      flushSync(() => {
-        if (position === "prev") {
-          setDataStates((d) => [
-            ...entries.map((e) => ({
-              index: e[1].index,
-              el: e[0],
-              size: e[1].initialHeight,
-              data: e[1],
-            })),
-            ...d,
-          ]);
-        } else if (position === "next") {
-          setDataStates((d) => [
-            ...d,
-            ...entries.map((e) => ({
-              index: e[1].index,
-              el: e[0],
-              size: e[1].initialHeight,
-              data: e[1],
-            })),
-          ]);
-        }
-
-        if (currentOffsetRef.current < 0 && position === "prev") {
-          // update offset and currentBase
-          let target = -1;
-          let newOffset = currentOffsetRef.current;
-          while (newOffset < 0 && entries[entries.length + target]) {
-            newOffset += entries[entries.length + target][1].initialHeight;
-            target--;
-          }
-          setCurrentBase(entries[entries.length + target + 1][1].index);
-          setCurrentOffset(newOffset);
-        }
-        const lastItem = dataStateRef.current[dataStateRef.current.length - 1];
-        if (
-          position === "next" &&
-          lastItem &&
-          lastItem.index === currentBaseRef.current &&
-          currentOffsetRef.current > getHeight(lastItem)
-        ) {
-          // update offset and currentBase
-          let target = 0;
-          let newOffset = currentOffsetRef.current - getHeight(lastItem);
-          while (
-            entries[target] &&
-            newOffset > entries[target][1].initialHeight
-          ) {
-            newOffset -= entries[target][1].initialHeight;
-            target++;
-          }
-          // overrun
-          if (entries[target] == null) {
-            // go back by one
-            target -= 1;
-            newOffset += entries[entries.length - 1][1].initialHeight;
-          }
-          setCurrentBase(entries[target][1].index);
-          setCurrentOffset(newOffset);
-        }
-
-        setMinMaxLiveViewport(heightSum + preloadRange);
-      });
-
-      onProgressEvent(currentBaseRef.current, currentOffsetRef.current);
-
-      if (position === "next" && isInitialInsert) {
-        // we may have a wrong scroll if append space is 0
-        // so we force set here
-
-        flushSync(() => {});
-        rootEl.scrollTop = prependSpace;
-      }
-      // debugger
-      if (position === "prev") {
-        if (hasInteractionRef.current) {
-          flushSync(() => {
-            setNegativeSpace((val) => val + heightSum);
-          });
+    if (elementRef.current) {
+      const el = elementRef.current
+      const cb: ResizeObserverCallback = () => {
+        const size = el.getBoundingClientRect()
+        if (direction === 'y') {
+          onSizeUpdate(size.height)
         } else {
-          const old = rootEl.scrollTop;
-          // rootEl.style.overflow = "hidden";
-          rootEl.scrollTop = old + heightSum;
-          // rootEl.style.overflow = "auto";
+          onSizeUpdate(size.width)
         }
       }
-    },
-    [
-      currentBaseRef,
-      currentOffsetRef,
-      dataStateRef,
-      footEndedRef,
-      hasInteractionRef,
-      headEndedRef,
-      heightRef,
-      onProgressEvent,
-      preloadRange,
-      prependSpace,
-      setCurrentBase,
-      setCurrentOffset,
-      setDataStates,
-      setFootEnded,
-      setHeadEnded,
-      setNegativeSpace,
-    ]
-  );
+      const observer = new ResizeObserver(cb)
+      observer.observe(el)
+      return () => {
+        observer.disconnect()
+      }
+    }
+  }, [direction, elementRef, onSizeUpdate])
 
-  // calculate whether we need to fetch more
+  type Job = {
+    action: 'loadPrev' | 'loadNext',
+    index: number,
+    controller: AbortController
+  }
 
-  let currentScroll = 0;
+  type Task = {
+    action: 'prepend';
+    items: DataEntry<T>[]
+  } | {
+    action: 'append';
+    items: DataEntry<T>[]
+  } | {
+    action: 'unloadPrev';
+    count: number
+  } | {
+    action: 'unloadNext';
+    count: number
+  } | {
+    action: 'patch';
+    items:  Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
+  } | {
+    action: 'forcedResync';
+  }
 
-  let itemIndex: number = -1;
-  for (let i = 0; i < dataStates.length; i++) {
-    if (currentBase === dataStates[i].index) {
-      currentScroll += currentOffset;
-      itemIndex = i;
-      break;
+  const pendingJob = useRef<Job[]>([])
+  const taskList = useRef<Task[]>([])
+
+  function appendJob (task: Job) {
+    pendingJob.current = [...pendingJob.current, task]
+  }
+  function appendTask (task: Task) {
+    taskList.current = [...taskList.current, task]
+  }
+  function removeTaskOfType (type: Task['action']) {
+    taskList.current = taskList.current.filter(i => i.action !== type)
+  }
+  function removeJobOfType (type: Job['action']) {
+    const toCancel = pendingJob.current.filter(i => i.action === type)
+    pendingJob.current = pendingJob.current.filter(i => i.action !== type)
+    for (const cancelled of toCancel) {
+      cancelled.controller.abort()
+    }
+  }
+  
+  const applyChanges = useEvent(() => {
+    const el = elementRef.current
+    if (!el) return
+    if (taskList.current.length === 0) return
+  
+    const currentContext = dynamicScrollContext
+    const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
+    const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+
+    const tasks = taskList.current
+    taskList.current = []
+
+    let newDataStates = currentContext.dataStates
+    let newPrependSpace = currentContext.prependSpace
+    let newAppendSpace = currentContext.appendSpace
+
+    const sortedTask = tasks.slice(0).sort((i, j) => (i.action === 'patch' ? 1 : 0) - (j.action === 'patch' ? 1 : 0))
+
+    let tweakUnloadDistPrev = false
+    let tweakUnloadDistNext = false
+
+    for (const task of sortedTask) {
+      console.log('execute', task, newDataStates)
+      const indexPrev = newDataStates.length > 0 ? newDataStates[0].index : 0
+      const indexNext = newDataStates.length > 0 ? newDataStates[newDataStates.length - 1].index : -1
+      switch (task.action) {
+        case 'prepend': {
+          if (task.items[task.items.length - 1].index !== indexPrev - 1) {
+            // bad id
+            console.warn('bad prepend', task)
+            break
+          }
+          tweakUnloadDistPrev = true
+          newDataStates = [...task.items, ...newDataStates]
+          const heightSum = task.items.reduce((p, c) => p + c.size, 0)
+          newPrependSpace -= heightSum
+          break
+        }
+        case 'append':{
+          if (task.items[0].index !== indexNext + 1) {
+            // bad id
+            console.warn('bad append', task)
+            break
+          }
+          tweakUnloadDistNext = true
+          newDataStates = [...newDataStates, ...task.items]
+          const heightSum = task.items.reduce((p, c) => p + c.size, 0)
+          newAppendSpace -= heightSum
+          break
+        }
+        case 'unloadPrev': {
+          const toUnload = Math.min(newDataStates.length - 1, task.count)
+          const unloadedItems = newDataStates.slice(0, toUnload)
+          const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
+          console.log('removeHeight prev', heightSum)
+          newDataStates = newDataStates.slice(toUnload, newDataStates.length)
+          newPrependSpace += heightSum
+          break
+        }
+        case 'unloadNext': {
+          const toUnload = Math.min(newDataStates.length - 1, task.count)
+          const unloadedItems = newDataStates.slice(newDataStates.length - toUnload, newDataStates.length)
+          const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
+          console.log('removeHeight next', heightSum)
+          newDataStates = newDataStates.slice(0, newDataStates.length - toUnload)
+          newAppendSpace += heightSum
+          break
+        }
+        case 'patch': {
+          const initialIndexAndOffset = getIndexAndOffsetWithDistance(newDataStates, currentScroll - newPrependSpace)
+
+          const newItems = newDataStates.map(i => {
+            const patch = task.items.find(j => j.index === i.index)
+            if (patch) {
+              return {
+                ...i,
+                ...patch
+              }
+            }
+            return i
+          })
+
+          const newPosition = newPrependSpace + getDistanceWithIndexAndOffset(newItems, initialIndexAndOffset[0], initialIndexAndOffset[1])
+
+          newPrependSpace -= (newPosition - currentScroll)
+        }
+      }
+    }
+
+    const heightSum = newDataStates.reduce((p, c) => p + c.size, 0)
+
+    const distanceToHead = currentScroll - newPrependSpace
+    const distanceToEnd = newPrependSpace + heightSum - (currentScroll + currentSize)
+    console.log(distanceToEnd)
+    
+    const minMaxUnloadDistance = Math.max(tweakUnloadDistPrev ? distanceToHead : 0, tweakUnloadDistNext ? distanceToEnd : 0)
+
+    if (isScrolling.current || headFixed) {
+      flushSync(() => {
+        setDynamicScrollContext({
+          dataStates: newDataStates,
+          prependSpace: newPrependSpace,
+          appendSpace: footFixed ? appendSpace : newAppendSpace,
+          minMaxLiveViewport: minMaxUnloadDistance
+        })
+      })
     } else {
-      currentScroll += getHeight(dataStates[i]);
+      // if we have more space, we shrink it and reduce scroll to match it
+
+      const scrollOffset = -(newPrependSpace - prependSpace)
+      flushSync(() => {
+        setDynamicScrollContext({
+          dataStates: newDataStates,
+          prependSpace: prependSpace,
+          appendSpace: footFixed ? appendSpace : newAppendSpace,
+          minMaxLiveViewport: minMaxUnloadDistance
+        })
+      })
+
+      if (scrollOffset != 0) {
+        console.log('scroll offset', scrollOffset)
+        if (direction === 'x') {
+          el.scrollLeft += scrollOffset
+        } else {
+          el.scrollTop += scrollOffset
+        }
+      }
+    }
+  })
+
+  useEffect(() => {
+    let id: ReturnType<typeof requestAnimationFrame>
+    function tick () {
+      applyChanges()
+      id = requestAnimationFrame(tick)
+    }
+    id = requestAnimationFrame(tick)
+
+    return () => {
+      cancelAnimationFrame(id)
+    }
+  }, [applyChanges])
+
+  const onItemSizeUpdate = (height: number, index: number) => {
+    const item = dynamicScrollContext.dataStates.find(i => i.index === index)
+    if (item) {
+      appendTask({
+        action: 'patch',
+        items: [
+          {
+            index,
+            data: item.data,
+            size: height,
+          }
+        ]
+      })
     }
   }
 
-  const fetchNext =
-    !footEnded &&
-    (dataStates.length === 0 ||
-      currentScroll + height >= heightSum - preloadRange);
-  const fetchPrev = !headEnded && !fetchNext && currentScroll < preloadRange;
+  const resizeRef = useObserveElements(onItemSizeUpdate)
 
-  const trimPrev = !(fetchNext || fetchPrev) && currentScroll > maxLiveViewport;
-  const trimNext =
-    !(trimPrev || fetchNext || fetchPrev) &&
-    heightSum - currentScroll - height > maxLiveViewport;
-
-  const trimItemIndex = trimPrev || trimNext ? itemIndex : 0;
-  const trimOffset = trimPrev || trimNext ? currentOffset : 0;
-  const trimHasInteraction = trimPrev || trimNext ? hasInteraction : false;
-
-  const [observer, setObserver] = useState<ResizeObserver>();
-  const [entries, setEntries] = useState<[el: HTMLElement, index: number][]>(
-    []
-  );
-
-  const observerHandler: ResizeObserverCallback = useEvent((eventEntries) => {
-    for (const ee of eventEntries) {
-      const item = entries.find((e) => e[0] === ee.target);
-      if (item != null) {
-        onSizeUpdate(ee.contentRect.height, item[1]);
-      }
-    }
-  });
-
-  useEffect(() => {
-    const newObserver = new ResizeObserver(observerHandler);
-    setObserver(newObserver);
-    return () => {
-      newObserver.disconnect();
-    };
-  }, [observerHandler]);
-
-  useEffect(() => {
-    if (observer == null) {
-      return;
-    }
-
-    for (const [el] of entries) {
-      observer.observe(el);
-    }
-
-    return () => {
-      for (const [el] of entries) {
-        observer.unobserve(el);
-      }
-    };
-  }, [entries, observer]);
-
-  const resizeRef = useCallback((el: HTMLElement | null, index: number) => {
-    setEntries((entries) => {
-      const entryIndex = entries.findIndex((e) => e[1] === index);
-      if (el) {
-        if (entryIndex >= 0) {
-          return [
-            ...entries.slice(0, entryIndex),
-            [el, index],
-            ...entries.slice(index + 1),
-          ];
-        } else {
-          return [...entries.slice(0), [el, index]];
-        }
+  const createFactory = (direction: "next" | "prev", boundaryIndex: number): EntryFactory =>
+    (index: number, size: number) => {
+      if (direction === "next") {
+        return {
+          resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
+          updateSize: (newHeight) =>
+            onItemSizeUpdate(newHeight, boundaryIndex + index + 1),
+          index: boundaryIndex + index + 1,
+        };
       } else {
-        return entries.filter((i) => i[1] !== index);
+        return {
+          resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
+          updateSize: (newHeight) =>
+            onItemSizeUpdate(newHeight, boundaryIndex - size + index),
+          index: boundaryIndex - size + index,
+        };
       }
-    });
-  }, []);
-
-  const createFactory = useCallback(
-    (direction: "next" | "prev", boundaryIndex: number): EntryFactory =>
-      (index: number, size: number) => {
-        if (direction === "next") {
-          return {
-            resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
-            updateSize: (newHeight) =>
-              onSizeUpdate(newHeight, boundaryIndex + index + 1),
-            index: boundaryIndex + index + 1,
-          };
-        } else {
-          return {
-            resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
-            updateSize: (newHeight) =>
-              onSizeUpdate(newHeight, boundaryIndex - size + index),
-            index: boundaryIndex - size + index,
-          };
-        }
-      },
-    [onSizeUpdate, resizeRef]
-  );
-
-  useEffect(() => {
-    if (height === 0) {
-      // not loaded yet
-      return;
     }
 
-    if (fetchNext) {
-      const controller = new AbortController();
-      const signal = controller.signal;
-      const lastIndex = dataStates[dataStates.length - 1]?.index;
-      const index = lastIndex != null ? lastIndex : -1;
-      const p = onLoadMoreEvent(
-        "next",
-        createFactory("next", index),
-        dataStates,
-        signal
-      );
-      p.then((entries) => !signal.aborted && onInsert("next", entries));
-      return () => {
-        controller.abort();
-      };
-    } else if (fetchPrev) {
-      const controller = new AbortController();
-      const signal = controller.signal;
-      const index = dataStates[0]?.index ?? 0;
-      const p = onLoadMoreEvent(
-        "prev",
-        createFactory("prev", index),
-        dataStates,
-        signal
-      );
-      p.then((entries) => !signal.aborted && onInsert("prev", entries));
-      return () => {
-        controller.abort();
-      };
-    } else if (trimPrev) {
-      const id = setTimeout(() => {
-        let length = 0;
-        let removeUntil = 0;
+  const onScroll = () => {
+    const el = elementRef.current
+    if (!el) return
+  
+    const currentContext = dynamicScrollContext
+    const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
+    const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+    const heightSum = currentContext.dataStates.reduce((p, c) => p + c.size, 0)
 
-        for (let i = trimItemIndex; i >= 0; i--) {
-          let newLength;
-          if (i === trimItemIndex) {
-            newLength = length + trimOffset;
-          } else {
-            newLength = length + getHeight(dataStates[i]);
-          }
-          if (newLength >= maxLiveViewport) {
-            break;
-          }
-          removeUntil = i;
-          length = newLength;
-        }
+    const distanceToHead = currentScroll - currentContext.prependSpace
+    const distanceToEnd = currentContext.prependSpace + heightSum - (currentScroll + currentSize)
 
-        // we cannot remove everything
-        if (removeUntil === dataStates.length) {
-          removeUntil--;
-        }
+    const indexPrev = currentContext.dataStates.length > 0 ? currentContext.dataStates[0].index : 0
+    const indexNext = currentContext.dataStates.length > 0 ? currentContext.dataStates[currentContext.dataStates.length - 1].index : -1
 
-        let extraTrim = 0;
-
-        if (headEnded) {
-          extraTrim = -prependSpace;
-        }
-
-        const sumDiff = dataStates
-          .slice(0, removeUntil)
-          .map((i) => getHeight(i))
-          .reduce((p, v) => p + v, 0);
-
-        console.log(extraTrim, sumDiff);
-
-        // remove element
-        if (trimHasInteraction) {
-          flushSync(() => {
-            if (headEnded) {
-              setHeadEnded(false);
+    if (distanceToHead < preloadRange) {
+      if (pendingJob.current.find(i => i.action === 'loadPrev' && i.index === indexPrev) == null) {
+        removeJobOfType('loadPrev')
+        removeTaskOfType('prepend')
+        removeTaskOfType('unloadPrev')
+        const controller = new AbortController()
+        onLoadMore('prev', createFactory('prev', indexPrev), currentContext.dataStates, controller.signal)
+          .then(res => {
+            removeJobOfType('loadPrev')
+            if (res === END_OF_STREAM) {
+              setHeadFixed(true)
+            } else {
+              appendTask({
+                action: 'prepend',
+                items: res.map(item => ({
+                  el: item[0],
+                  data: item[1],
+                  index: item[1].index,
+                  size: item[1].initialHeight
+                }))
+              })
             }
-            setDataStates((ds) => ds.slice(removeUntil));
-            setNegativeSpace((val) => val - (sumDiff + extraTrim));
-          });
-        } else {
-          flushSync(() => {
-            if (headEnded) {
-              setHeadEnded(false);
+          }, (err: unknown) => {
+            if (controller.signal.aborted) return
+            console.error(err)
+          })
+        appendJob({
+          action: 'loadPrev',
+          index: indexPrev,
+          controller
+        })
+      }
+    }
+    if (distanceToEnd < preloadRange) {
+      if (pendingJob.current.find(i => i.action === 'loadNext' && i.index === indexNext) == null) {
+        removeJobOfType('loadNext')
+        removeTaskOfType('append')
+        removeTaskOfType('unloadNext')
+        const controller = new AbortController()
+        onLoadMore('next', createFactory('next', indexNext), currentContext.dataStates, controller.signal)
+          .then(res => {
+            removeJobOfType('loadNext')
+            if (res === END_OF_STREAM) {
+              setHeadFixed(true)
+            } else {
+              appendTask({
+                action: 'append',
+                items: res.map(item => ({
+                  el: item[0],
+                  data: item[1],
+                  index: item[1].index,
+                  size: item[1].initialHeight
+                }))
+              })
             }
-            setDataStates((ds) => ds.slice(removeUntil));
-          });
-          if (scrollerRef.current) {
-            const old = scrollerRef.current.scrollTop;
-            // rootEl.style.overflow = "hidden";
-            scrollerRef.current.scrollTop = old - (sumDiff + extraTrim);
-            // rootEl.style.overflow = "auto";
-          }
-        }
-      });
-      return () => {
-        clearTimeout(id);
-      };
-    } else if (trimNext) {
-      const id = setTimeout(() => {
-        let length = 0;
-        let removeAfter = 0;
-
-        for (let i = trimItemIndex; i < dataStates.length - 1; i++) {
-          let newLength;
-          if (i === trimItemIndex) {
-            newLength = getHeight(dataStates[i]) - trimOffset;
-          } else {
-            newLength = length + getHeight(dataStates[i]);
-          }
-          if (newLength >= maxLiveViewport) {
-            break;
-          }
-          removeAfter = i;
-          length = newLength;
-        }
-
-        // we cannot remove everything
-        if (removeAfter === 0) {
-          removeAfter = 1;
-        }
-        if (footEnded) {
-          setFootEnded(false);
-        }
-
-        setDataStates((ds) => ds.slice(0, removeAfter));
-      });
-      return () => {
-        clearTimeout(id);
-      };
-    }
-  }, [
-    dataStates,
-    onInsert,
-    fetchNext,
-    fetchPrev,
-    onLoadMoreEvent,
-    onSizeUpdate,
-    trimPrev,
-    trimNext,
-    trimHasInteraction,
-    trimItemIndex,
-    maxLiveViewport,
-    trimOffset,
-    setDataStates,
-    setNegativeSpace,
-    heightSum,
-    resizeRef,
-    headEnded,
-    prependSpace,
-    setHeadEnded,
-    footEnded,
-    setFootEnded,
-    height,
-    createFactory,
-  ]);
-
-  const elements = dataStates.map((s) => (
-    <div key={s.index} style={{ height: `${getHeight(s)}px` }}>
-      {s.el}
-    </div>
-  ));
-
-  const onScroll: UIEventHandler<HTMLDivElement> = (ev) => {
-    if (hasFocusedInteraction) {
-      setHasInteractionBefore(Infinity);
-    } else {
-      setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY);
-    }
-
-    if (dataStates.length === 0) {
-      return;
-    }
-
-    let pos = ev.currentTarget.scrollTop;
-
-    if (pos < 0) {
-      ev.currentTarget.style.overflow = "hidden";
-      ev.currentTarget.scrollTop = 0;
-      ev.currentTarget.style.overflow = "auto";
-      pos = 0;
-    }
-
-    // at pre-position
-    if (pos < currentPrependSpace - negativeSpace) {
-      const newBase = dataStates[0];
-      if (newBase == null) return;
-      const offset = pos - prependSpace;
-      if (headEnded) {
-        // force commit
-        flushSync(() => {
-          setNegativeSpace(0);
-          setCurrentOffset(0);
-          setCurrentBase(newBase.index);
-        });
-        ev.currentTarget.style.overflow = "hidden";
-        ev.currentTarget.scrollTop = 0;
-        ev.currentTarget.style.overflow = "auto";
-        // FIXME: safari scroll workaround
-        fixFreezingScrollBar(ev.currentTarget, 0);
-        onProgressEvent(newBase.index, 0);
-        return;
+          }, (err: unknown) => {
+            if (controller.signal.aborted) return
+            console.error(err)
+          })
+        appendJob({
+          action: 'loadNext',
+          index: indexNext,
+          controller
+        })
       }
-      setCurrentOffset(offset);
-      setCurrentBase(newBase.index);
-      onProgressEvent(newBase.index, offset);
-      // console.log(offset);
-      // console.log(newBase.index);
-      return;
     }
-    // in list
-    let offset = currentPrependSpace - negativeSpace;
-    for (const item of dataStates) {
-      const height = getHeight(item);
-      if (offset + height > pos) {
-        setCurrentOffset(pos - offset);
-        setCurrentBase(item.index);
-        onProgressEvent(item.index, pos - offset);
-        // console.log(pos - offset);
-        // console.log(item.index);
-        return;
+
+    if (distanceToHead > maxLiveViewport) {
+      const toUnloadDist = distanceToHead - maxLiveViewport
+      let sum = 0
+      let count = 0
+      for (let i = 0; i < currentContext.dataStates.length; i++) {
+        sum += currentContext.dataStates[i].size
+        count++
+        if (sum >= toUnloadDist) {
+          break
+        }
       }
-      offset += height;
+      appendTask({
+        'action': 'unloadPrev',
+        count
+      })
     }
-    // overrun
-    const item = dataStates[dataStates.length - 1];
-    setCurrentOffset(pos - offset + getHeight(item));
-    setCurrentBase(item.index);
-    onProgressEvent(item.index, pos - offset + getHeight(item));
-    // console.log(pos - offset + getHeight(item));
-    // console.log(item.index);
-  };
+    if (distanceToEnd > maxLiveViewport) {
+      const toUnloadDist = distanceToEnd - maxLiveViewport
+      let sum = 0
+      let count = 0
+      for (let i = currentContext.dataStates.length - 1; i >= 0; i--) {
+        sum += currentContext.dataStates[i].size
+        console.log(sum)
+        count++
+        if (sum >= toUnloadDist) {
+          break
+        }
+      }
+      appendTask({
+        'action': 'unloadNext',
+        count
+      })
+    }
+  }
 
-  const onTouchMove: TouchEventHandler<HTMLDivElement> = (ev) => {
-    const baseY = ev.currentTarget.getBoundingClientRect().top;
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
-  };
-  const onTouchStart: TouchEventHandler<HTMLDivElement> = (ev) => {
-    // console.log(ev)
-    setHasFocusedInteraction(true);
-    setHasInteractionBefore(Infinity);
-    const baseY = ev.currentTarget.getBoundingClientRect().top;
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
-  };
-  const onTouchEnd: TouchEventHandler<HTMLDivElement> = (ev) => {
-    // console.log(ev)
-    stopInteractionShortly(ev);
-    const baseY = ev.currentTarget.getBoundingClientRect().top;
-    lastInteractPosition.current = ev.changedTouches[0].clientY - baseY;
-  };
-
-  const stopInteractionShortly: TouchEventHandler<HTMLDivElement> = () => {
-    // console.log(ev)
-    setHasFocusedInteraction(false);
-    setHasInteractionBefore(Date.now() + INTERACTION_CHANGE_DELAY);
-  };
+  const elements = useMemo(() => {
+    return dynamicScrollContext.dataStates.map((i) => {
+      return <i.el.type {...i.el.props} key={i.index} style={direction === 'y' ? {
+        height: i.size + 'px'
+      } : {
+        width: i.size + 'px'
+      }} />
+    })
+  }, [dynamicScrollContext.dataStates, direction])
 
   return (
     <div
       {...props}
-      ref={onRefed}
+      ref={elementRef}
       style={style}
       className={"dyn root" + (className ? `  ${className}` : "")}
       onScroll={onScroll}
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      // onTouchStart={onTouchStart}
+      // onTouchMove={onTouchMove}
+      // onTouchEnd={onTouchEnd}
     >
-      <div
-        className="spacing"
-        style={{
-          height: `${currentPrependSpace}px`,
-          background: prependContent ? 'white' : 'transparent',
-          zIndex: prependContent ? '1' : '-1',
-        }}
-      >
-        {prependContent}
+      <div style={stageStyle}>
+
       </div>
-      <div style={{ marginTop: `${-negativeSpace}px` }} />
-      {elements}
-      <div
-        className="spacing"
-        style={{
-          height: `${currentAppendSpace}px`,
-          background: appendContent ? 'white' : 'transparent',
-          zIndex: appendContent ? '1' : '-1',
-        }}
-      >
-        {appendContent}
+      <div 
+        className={`container-${direction}`}
+        style={direction === 'y' 
+        ? { transform: `translateY(${dynamicScrollContext.prependSpace}px)` }
+        : { transform: `translateX(${dynamicScrollContext.prependSpace}px)`}
+      }>
+        {elements}
       </div>
     </div>
   );
