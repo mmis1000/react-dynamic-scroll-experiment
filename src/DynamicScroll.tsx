@@ -420,7 +420,7 @@ export const DynamicScroll = <T extends DataBase>({
         setDynamicScrollContext({
           dataStates: newDataStates,
           prependSpace: newPrependSpace,
-          appendSpace: footFixed ? appendSpace : newAppendSpace,
+          appendSpace: footFixed ? newAppendSpace : appendSpace,
           minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
           minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
@@ -433,7 +433,7 @@ export const DynamicScroll = <T extends DataBase>({
         setDynamicScrollContext({
           dataStates: newDataStates,
           prependSpace: prependSpace,
-          appendSpace: footFixed ? appendSpace : newAppendSpace,
+          appendSpace: footFixed ? newAppendSpace : appendSpace,
           minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
           minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
