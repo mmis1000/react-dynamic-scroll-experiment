@@ -234,6 +234,7 @@ export const DynamicScroll = <T extends DataBase>({
       const el = elementRef.current!
       screenHeight.current = newSize
 
+      console.log('initial scroll to', newContainerOffset)
       if (direction === 'x') {
         el.scrollLeft = newContainerOffset
       } else {
@@ -289,7 +290,9 @@ export const DynamicScroll = <T extends DataBase>({
     action: 'patch';
     items: Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
   } | {
-    action: 'forcedResync';
+    action: 'fixHead';
+  } | {
+    action: 'fixFoot';
   }
 
   const pendingJob = useRef<Job[]>([])
@@ -410,30 +413,37 @@ export const DynamicScroll = <T extends DataBase>({
 
     const distanceToHead = currentScroll - newPrependSpace
     const distanceToEnd = newPrependSpace + heightSum - (currentScroll + currentSize)
-    console.log(distanceToEnd)
 
     const minMaxUnloadDistancePrev = tweakUnloadDistPrev ? (tweakUnloadDistPrev === 'grow' ? distanceToHead : 0) : dynamicScrollContext.minMaxLiveViewportPrev
     const minMaxUnloadDistanceNext = tweakUnloadDistNext ? (tweakUnloadDistNext === 'grow' ? distanceToEnd : 0) : dynamicScrollContext.minMaxLiveViewportNext
 
-    if (isScrolling.current || headFixed) {
+    const fixHead = sortedTask.find(i => i.action === 'fixHead') != null
+    const fixFoot = sortedTask.find(i => i.action === 'fixFoot') != null
+
+    if (isScrolling.current) {
       flushSync(() => {
+        if (fixFoot) setFootFixed(true)
         setDynamicScrollContext({
           dataStates: newDataStates,
           prependSpace: newPrependSpace,
-          appendSpace: footFixed ? newAppendSpace : appendSpace,
+          appendSpace: fixFoot ? 0 : footFixed ? newAppendSpace : appendSpace,
           minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
           minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
       })
     } else {
       // if we have more space, we shrink it and reduce scroll to match it
+      const targetSpace = fixHead ? 0 : headFixed ? newPrependSpace : prependSpace
+      const scrollOffset = -(newPrependSpace - targetSpace)
+      console.log('target ', targetSpace)
 
-      const scrollOffset = -(newPrependSpace - prependSpace)
       flushSync(() => {
+        if (fixFoot) setFootFixed(true)
+        if (fixHead) setHeadFixed(true)
         setDynamicScrollContext({
           dataStates: newDataStates,
-          prependSpace: prependSpace,
-          appendSpace: footFixed ? newAppendSpace : appendSpace,
+          prependSpace: targetSpace,
+          appendSpace: fixFoot ? 0 : footFixed ? newAppendSpace : appendSpace,
           minMaxLiveViewportPrev: minMaxUnloadDistancePrev,
           minMaxLiveViewportNext: minMaxUnloadDistanceNext,
         })
@@ -450,6 +460,7 @@ export const DynamicScroll = <T extends DataBase>({
     }
 
     // check once more after apply changes
+    if (sortedTask.filter(i => i.action !== 'fixHead' && i.action !== 'fixFoot').length > 0)
     performCheck()
   })
 
@@ -531,7 +542,10 @@ export const DynamicScroll = <T extends DataBase>({
           .then(res => {
             removeJobOfType('loadPrev')
             if (res === END_OF_STREAM) {
-              setHeadFixed(true)
+              appendTask({
+                action: 'fixHead'
+              })
+              // setHeadFixed(true)
             } else {
               appendTask({
                 action: 'prepend',
@@ -567,7 +581,10 @@ export const DynamicScroll = <T extends DataBase>({
           .then(res => {
             removeJobOfType('loadNext')
             if (res === END_OF_STREAM) {
-              setHeadFixed(true)
+              appendTask({
+                action: 'fixFoot'
+              })
+              // setFootFixed(true)
             } else {
               appendTask({
                 action: 'append',
