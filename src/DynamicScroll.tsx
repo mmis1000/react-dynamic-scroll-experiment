@@ -215,12 +215,17 @@ export const DynamicScroll = <T extends DataBase>({
   const stageSize = dynamicScrollContext.prependSpace + itemSizeSum + dynamicScrollContext.appendSpace
 
   const stageStyle = useMemo((): CSSProperties => {
-    return direction === 'y' ? {
-      height: stageSize + 'px'
-    } : {
-      width: stageSize + 'px'
+    return {
+      ...(direction === 'y' ? {
+        height: stageSize + 'px',
+      } : {
+        width: stageSize + 'px',
+      }),
+      ...(prependSpace > 0 ? {
+        minHeight: '200%'
+      } : {})
     }
-  }, [direction, stageSize])
+  }, [direction, prependSpace, stageSize])
 
   const onSizeUpdate = useEvent((newSize: number) => {
     if (screenHeight.current === -1) {
@@ -238,8 +243,8 @@ export const DynamicScroll = <T extends DataBase>({
       // trigger initial load
       performCheck()
     } else if (screenHeight.current !== newSize) {
-      // TODO: perform size change handling
       screenHeight.current = newSize
+      performCheck()
     }
   })
 
@@ -395,6 +400,7 @@ export const DynamicScroll = <T extends DataBase>({
 
           const newPosition = newPrependSpace + getDistanceWithIndexAndOffset(newItems, initialIndexAndOffset[0], initialIndexAndOffset[1])
 
+          newDataStates = newItems
           newPrependSpace -= (newPosition - currentScroll)
         }
       }
@@ -442,6 +448,9 @@ export const DynamicScroll = <T extends DataBase>({
         }
       }
     }
+
+    // check once more after apply changes
+    performCheck()
   })
 
   useEffect(() => {
@@ -619,11 +628,13 @@ export const DynamicScroll = <T extends DataBase>({
 
   const elements = useMemo(() => {
     return dynamicScrollContext.dataStates.map((i) => {
-      return <i.el.type {...i.el.props} key={i.index} style={direction === 'y' ? {
+      return <div key={i.index} style={direction === 'y' ? {
         height: i.size + 'px'
       } : {
         width: i.size + 'px'
-      }} />
+      }}>
+        {i.el}
+      </div>
     })
   }, [dynamicScrollContext.dataStates, direction])
 

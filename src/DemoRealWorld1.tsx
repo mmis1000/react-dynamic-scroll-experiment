@@ -55,14 +55,14 @@ const ImageElement = forwardRef<
   return (
     <div
       ref={ref}
-      style={{ ...(style ?? {}), display: "flex", justifyContent: "stretch" }}
+      style={{ ...(style ?? {}), display: "flex", justifyContent: "stretch", flexDirection: "column" }}
       className={className ? "item " + className : "item"}
     >
       <img
         onLoad={() => setLoaded(true)}
         onError={() => setLoaded(true)}
         src={data.src.medium}
-        style={{ width: "100%" }}
+        style={{ width: "100%", flex: "0 0 auto" }}
         width={400}
         height={loaded ? undefined : 300}
       />
@@ -139,29 +139,32 @@ export function DemoRealWorld1({ className }: { className?: string }) {
       return END_OF_STREAM;
     }
 
-    return items.map((data, index2, arr) => [
-      <ImageElement
-        ref={factory(index2, arr.length).resizeRef}
-        style={{ backgroundColor: data.avg_color }}
-        data={data}
-      >
-        <div className="index">
-          page {page}, {baseItemIndex + index2 + 1}/{pageSize}
-        </div>
-        <div className="caption">{data.alt}</div>
-        <a className="author" href={data.photographer_url} target="_blank">
-          {data.photographer}
-        </a>
-      </ImageElement>,
-      {
-        index: factory(index2, arr.length).index,
-        page,
-        pageSize,
-        items: fullItems,
-        itemIndex: baseItemIndex + index2,
-        initialHeight: (window.innerWidth / 3) * 4,
-      },
-    ]);
+    return items.map((data, index2, arr) => {
+      const entry = factory(index2, arr.length)
+      return [
+        <ImageElement
+          ref={entry.resizeRef}
+          style={{ backgroundColor: data.avg_color }}
+          data={data}
+        >
+          <div className="index">
+            page {page}, {baseItemIndex + index2 + 1}/{pageSize}
+          </div>
+          <div className="caption">{data.alt}</div>
+          <a className="author" href={data.photographer_url} target="_blank">
+            {data.photographer}
+          </a>
+        </ImageElement>,
+        {
+          index: entry.index,
+          page,
+          pageSize,
+          items: fullItems,
+          itemIndex: baseItemIndex + index2,
+          initialHeight: (window.innerWidth / 3) * 4,
+        },
+      ]
+    });
   };
 
   const onSelectAnchor: AnchorSelector<{

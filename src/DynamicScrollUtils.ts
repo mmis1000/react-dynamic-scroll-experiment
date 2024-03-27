@@ -77,7 +77,7 @@ export function useObserveElements(onSizeUpdate: (height: number, index: number)
             ...entries.slice(index + 1),
           ];
         } else {
-          return [...entries.slice(0), [el, index]];
+          return [...entries.slice(0), [el, index] as const];
         }
       } else {
         return entries.filter((i) => i[1] !== index);
