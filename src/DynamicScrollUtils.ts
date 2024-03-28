@@ -187,7 +187,7 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       el.removeEventListener('touchend', onTouchEnd)
       el.removeEventListener('touchcancel', onTouchEnd)
     }
-  }, [ref])
+  }, [ref, updateScrolling])
 
   const markScrollChange = useCallback(() => {
     if (hasScrollingEndSupport) {

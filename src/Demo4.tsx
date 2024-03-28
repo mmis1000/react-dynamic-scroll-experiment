@@ -1,5 +1,5 @@
 import { CSSProperties, ReactElement, ReactNode, forwardRef, useEffect, useRef, useState } from "react"
-import { DynamicScroll, DynamicChildElementProps, LoadHandler, AnchorSelector } from "./DynamicScroll"
+import { DynamicScroll, DynamicChildElementProps, LoadHandler } from "./DynamicScroll"
 import './Demo4.css'
 
 const COUNT = 8
@@ -68,11 +68,6 @@ export function Demo4 ({
       }
       return arr
     }
-
-    const onSelectAnchor: AnchorSelector<{ index: number, initialHeight: number }> = (entries, index, offset, ...args) => {
-      console.log(entries, index, offset, ...args)
-      return [index, offset]
-    }
   
-    return <DynamicScroll className={className} prependSpace={5000} appendSpace={5000} onLoadMore={onLoadMore} onSelectAnchor={onSelectAnchor}/>
+    return <DynamicScroll className={className} prependSpace={5000} appendSpace={5000} onLoadMore={onLoadMore} />
 }

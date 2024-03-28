@@ -2,6 +2,7 @@ import {
   CSSProperties,
   ReactElement,
   ReactNode,
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -50,13 +51,46 @@ export interface ProgressHandler<Data extends DataBase> {
 
 export interface AnchorSelector<Data extends DataBase> {
   (
-    partialEntries: DataEntry<Data>[],
-    index: number,
-    offset: number,
-    containerHeight: number,
+    entries: DataEntry<Data>[],
+    // start point of content in the container
+    contentOffset: number,
+    // scroll position of container
+    scroll: number,
+    // size of container
+    containerSize: number,
+    // touch position on the screen (screen position)
     lastTouchPosition: number
   ): [index: number, offset: number];
 }
+
+const anchorStrategyTouch: AnchorSelector<DataBase> = (entries, contentOffset, scroll, _containerSize, lastTouchPosition) => {
+  const distance = scroll - contentOffset + lastTouchPosition
+
+  if (entries.length === 0) {
+    return [0, distance];
+  }
+
+  if (distance < 0) {
+    return [entries[0]!.index, distance];
+  }
+
+  let currentOffset = distance;
+
+  for (let i = 0; i < entries.length; i++) {
+    const height = getHeight(entries[i]);
+    if (currentOffset < height) {
+      return [entries[i]!.index, currentOffset];
+    }
+    currentOffset -= height;
+  }
+
+  const lastHeight = getHeight(entries[entries.length - 1]);
+
+  return [entries[entries.length - 1]!.index, currentOffset + lastHeight];
+};
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const anchorStrategyDefault: AnchorSelector<DataBase> = (entries, contentOffset, scroll, _containerSize, _lastTouchPosition) => getIndexAndOffsetWithDistance(entries, scroll - contentOffset)
 
 function fixFreezingScrollBar(el: HTMLElement, scrollPos: number) {
   el.scrollTop = scrollPos + 1;
@@ -80,7 +114,7 @@ interface RawDynamicScrollProps<Data extends DataBase> {
   style?: CSSProperties;
   prependContent?: ReactNode;
   appendContent?: ReactNode;
-  onSelectAnchor?: AnchorSelector<Data>;
+  onSelectAnchor?: 'default' | 'touch' | AnchorSelector<Data>;
   direction?: 'x' | 'y'
 }
 
@@ -214,6 +248,24 @@ export const DynamicScroll = <T extends DataBase>({
       } : {})
     }
   }, [direction, prependSpace, stageSize])
+
+  const selectAnchor = useEvent((
+    entries: DataEntry<T>[],
+    // start point of content in the container
+    contentOffset: number,
+    // scroll position of container
+    scroll: number,
+    // size of container
+    containerSize: number,
+    // touch position on the screen (screen position)
+    lastTouchPosition: number
+  ) => {
+    return onSelectAnchor == null || onSelectAnchor == 'default'
+      ? anchorStrategyDefault(entries, contentOffset, scroll, containerSize, lastTouchPosition)
+      : onSelectAnchor === 'touch'
+      ? anchorStrategyTouch(entries, contentOffset, scroll, containerSize, lastTouchPosition)
+      : onSelectAnchor(entries, contentOffset, scroll, containerSize, lastTouchPosition)
+  })
 
   const onSizeUpdate = useEvent((newSize: number) => {
     if (screenHeight.current === -1) {
@@ -382,7 +434,7 @@ export const DynamicScroll = <T extends DataBase>({
         case 'patch': {
           tweakUnloadDistPrev = 'grow'
           tweakUnloadDistNext = 'grow'
-          const initialIndexAndOffset = getIndexAndOffsetWithDistance(newDataStates, currentScroll - newPrependSpace)
+          const initialIndexAndOffset = selectAnchor(newDataStates, newPrependSpace, currentScroll, currentSize, 0)
 
           const newItems = newDataStates.map(i => {
             const patch = task.items.find(j => j.index === i.index)

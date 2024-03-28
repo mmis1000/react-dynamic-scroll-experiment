@@ -1,7 +1,7 @@
 import { CSSProperties, ReactElement, ReactNode, forwardRef } from "react"
-import { DynamicScroll, DynamicChildElementProps, LoadHandler, AnchorSelector } from "./DynamicScroll"
+import { DynamicScroll, DynamicChildElementProps, LoadHandler } from "./DynamicScroll"
 import './Demo7.css'
-import { END_OF_STREAM, getHeight } from "./DynamicScrollUtils"
+import { END_OF_STREAM } from "./DynamicScrollUtils"
 
 const COUNT = 8
 const DELAY = 200
@@ -71,31 +71,5 @@ export function Demo7({
     return arr;
   };
 
-  const onSelectAnchor: AnchorSelector<{ index: number, initialHeight: number }> = (entries, index, offset, containerHeight, lastTouchPosition) => {
-    console.log(entries, index, offset, containerHeight, lastTouchPosition)
-    const rootItemArrayIndex = entries.findIndex(e => e.index === index)
-    if (rootItemArrayIndex < 0) {
-      return [index, offset];
-    }
-    let currentSelection = index
-    let currentOffset = offset
-    let currentShortestDist = Math.abs(offset + lastTouchPosition)
-    for (let i = rootItemArrayIndex; i < entries.length - 1; i++) {
-      // check for next entry
-      const nextSelection = entries[i + 1].index
-      const nextOffset = currentOffset - getHeight(entries[i])
-      const nextShortestDist = Math.abs(nextOffset + lastTouchPosition)
-
-      if (nextShortestDist < currentShortestDist) {
-        currentSelection = nextSelection
-        currentOffset = nextOffset
-        currentShortestDist = nextShortestDist
-      } else {
-        break
-      }
-    }
-    return [currentSelection, currentOffset,]
-  }
-
-  return <DynamicScroll className={className} prependSpace={0} appendSpace={0} onLoadMore={onLoadMore} onSelectAnchor={onSelectAnchor} />
+  return <DynamicScroll className={className} prependSpace={0} appendSpace={0} onLoadMore={onLoadMore} onSelectAnchor={'touch'} />
 }

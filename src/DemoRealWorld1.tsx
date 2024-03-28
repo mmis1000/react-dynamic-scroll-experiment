@@ -1,13 +1,11 @@
 import { CSSProperties, ReactNode, forwardRef, useRef, useState } from "react";
 import {
   DynamicScroll,
-  LoadHandler,
-  AnchorSelector,
-  DataBase,
-  ProgressHandler,
+  LoadHandler, DataBase,
+  ProgressHandler
 } from "./DynamicScroll";
 import "./DemoRealWorld1.css";
-import { END_OF_STREAM, getHeight } from "./DynamicScrollUtils";
+import { END_OF_STREAM } from "./DynamicScrollUtils";
 
 const COUNT = 10;
 
@@ -167,35 +165,6 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     });
   };
 
-  const onSelectAnchor: AnchorSelector<{
-    index: number;
-    initialHeight: number;
-  }> = (entries, index, offset, containerHeight, lastTouchPosition) => {
-    console.log(entries, index, offset, containerHeight, lastTouchPosition);
-    const rootItemArrayIndex = entries.findIndex((e) => e.index === index);
-    if (rootItemArrayIndex < 0) {
-      return [index, offset];
-    }
-    let currentSelection = index;
-    let currentOffset = offset;
-    let currentShortestDist = Math.abs(offset + lastTouchPosition);
-    for (let i = rootItemArrayIndex; i < entries.length - 1; i++) {
-      // check for next entry
-      const nextSelection = entries[i + 1].index;
-      const nextOffset = currentOffset - getHeight(entries[i]);
-      const nextShortestDist = Math.abs(nextOffset + lastTouchPosition);
-
-      if (nextShortestDist < currentShortestDist) {
-        currentSelection = nextSelection;
-        currentOffset = nextOffset;
-        currentShortestDist = nextShortestDist;
-      } else {
-        break;
-      }
-    }
-    return [currentSelection, currentOffset];
-  };
-
   const [currentPage, setCurrentPage] = useState(0);
   const [currentImage, setCurrentImage] = useState(0);
   const [currentTotalImage, setCurrentTotalImage] = useState(0);
@@ -218,7 +187,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         appendContent="Loading..."
         onLoadMore={onLoadMore}
         onProgress={onProgress}
-        onSelectAnchor={onSelectAnchor}
+        onSelectAnchor={'touch'}
       />
       <div
         style={{
