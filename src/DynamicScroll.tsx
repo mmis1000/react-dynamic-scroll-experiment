@@ -1,5 +1,3 @@
-/* eslint-disable prefer-const */
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import {
   CSSProperties,
   ReactElement,
@@ -11,7 +9,7 @@ import {
 } from "react";
 import { flushSync } from "react-dom";
 import "./DynamicScroll.css";
-import { END_OF_STREAM, getHeight, useEvent, useObserveElements } from "./DynamicScrollUtils";
+import { END_OF_STREAM, getHeight, useEvent, useObserveElements, useScrollingEvent } from "./DynamicScrollUtils";
 
 export interface DataBase {
   index: number;
@@ -60,9 +58,6 @@ export interface AnchorSelector<Data extends DataBase> {
   ): [index: number, offset: number];
 }
 
-const TOLERANCE = 3
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function fixFreezingScrollBar(el: HTMLElement, scrollPos: number) {
   el.scrollTop = scrollPos + 1;
   el.scrollTo({ top: scrollPos });
@@ -96,9 +91,6 @@ type DynamicScrollProps<Data extends DataBase> = Omit<
   keyof RawDynamicScrollProps<Data>
 > &
   RawDynamicScrollProps<Data>;
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const INTERACTION_CHANGE_DELAY = 100;
 
 const getIndexAndOffsetWithDistance = (
   entries: DataEntry<DataBase>[],
@@ -149,6 +141,7 @@ const getDistanceWithIndexAndOffset = (
 };
 
 interface DynamicScrollContext<T extends DataBase> {
+  startIndex: number,
   dataStates: DataEntry<T>[],
   prependSpace: number,
   appendSpace: number,
@@ -157,7 +150,6 @@ interface DynamicScrollContext<T extends DataBase> {
   minMaxLiveViewportNext: number
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint
 export const DynamicScroll = <T extends DataBase>({
   initialHeadLocked = false,
   initialFootLocked = false,
@@ -166,14 +158,10 @@ export const DynamicScroll = <T extends DataBase>({
   maxLiveViewport: maxLiveViewportProp = 3000,
   preloadRange = 1000,
   onLoadMore,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onProgress = () => { },
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   prependContent,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   appendContent,
   className,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onSelectAnchor,
   style,
   direction = 'y',
@@ -184,7 +172,6 @@ export const DynamicScroll = <T extends DataBase>({
   const screenHeight = useRef(-1)
 
   const [headFixed, setHeadFixed] = useState(initialHeadLocked);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [footFixed, setFootFixed] = useState(initialFootLocked);
 
   // const [currentPrependSpace, setPrependSpace, prependSpaceRef] = useRefState(initialHeadLocked ? 0 : prependSpace);
@@ -195,6 +182,7 @@ export const DynamicScroll = <T extends DataBase>({
   const isScrolling = useRef(false)
 
   const [dynamicScrollContext, setDynamicScrollContext] = useState<DynamicScrollContext<T>>(() => ({
+    startIndex: 0,
     dataStates: [],
     // recalculation of minMaxLiveViewport relies on this
     screenHeight: -1,
@@ -293,6 +281,8 @@ export const DynamicScroll = <T extends DataBase>({
     action: 'fixHead';
   } | {
     action: 'fixFoot';
+  } | {
+    action: 'resync';
   }
 
   const pendingJob = useRef<Job[]>([])
@@ -327,6 +317,7 @@ export const DynamicScroll = <T extends DataBase>({
     const tasks = taskList.current
     taskList.current = []
 
+    let newStartIndex = currentContext.startIndex
     let newDataStates = currentContext.dataStates
     let newPrependSpace = currentContext.prependSpace
     let newAppendSpace = currentContext.appendSpace
@@ -338,8 +329,9 @@ export const DynamicScroll = <T extends DataBase>({
 
     for (const task of sortedTask) {
       console.log('execute', task, newDataStates)
-      const indexPrev = newDataStates.length > 0 ? newDataStates[0].index : 0
-      const indexNext = newDataStates.length > 0 ? newDataStates[newDataStates.length - 1].index : -1
+      const indexPrev = newStartIndex
+      const indexNext = newStartIndex + newDataStates.length - 1
+
       switch (task.action) {
         case 'prepend': {
           if (task.items[task.items.length - 1].index !== indexPrev - 1) {
@@ -348,6 +340,7 @@ export const DynamicScroll = <T extends DataBase>({
             break
           }
           tweakUnloadDistPrev = 'grow'
+          newStartIndex -= task.items.length
           newDataStates = [...task.items, ...newDataStates]
           const heightSum = task.items.reduce((p, c) => p + c.size, 0)
           newPrependSpace -= heightSum
@@ -367,17 +360,18 @@ export const DynamicScroll = <T extends DataBase>({
         }
         case 'unloadPrev': {
           tweakUnloadDistPrev = 'reset'
-          const toUnload = Math.min(newDataStates.length - 1, task.count)
+          const toUnload = Math.min(newDataStates.length, task.count)
           const unloadedItems = newDataStates.slice(0, toUnload)
           const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
           console.log('removeHeight prev', heightSum)
+          newStartIndex += toUnload
           newDataStates = newDataStates.slice(toUnload, newDataStates.length)
           newPrependSpace += heightSum
           break
         }
         case 'unloadNext': {
           tweakUnloadDistNext = 'reset'
-          const toUnload = Math.min(newDataStates.length - 1, task.count)
+          const toUnload = Math.min(newDataStates.length, task.count)
           const unloadedItems = newDataStates.slice(newDataStates.length - toUnload, newDataStates.length)
           const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
           console.log('removeHeight next', heightSum)
@@ -424,6 +418,7 @@ export const DynamicScroll = <T extends DataBase>({
       flushSync(() => {
         if (fixFoot) setFootFixed(true)
         setDynamicScrollContext({
+          startIndex: newStartIndex,
           dataStates: newDataStates,
           prependSpace: newPrependSpace,
           appendSpace: fixFoot ? 0 : footFixed ? newAppendSpace : appendSpace,
@@ -433,7 +428,8 @@ export const DynamicScroll = <T extends DataBase>({
       })
     } else {
       // if we have more space, we shrink it and reduce scroll to match it
-      const targetSpace = fixHead ? 0 : headFixed ? newPrependSpace : prependSpace
+      // targetSpace < 0 does not make sense because scroll over negative scrollTop don't work
+      const targetSpace = fixHead ? 0 : Math.max(headFixed ? newPrependSpace : prependSpace, 0)
       const scrollOffset = -(newPrependSpace - targetSpace)
       console.log('target ', targetSpace)
 
@@ -441,6 +437,7 @@ export const DynamicScroll = <T extends DataBase>({
         if (fixFoot) setFootFixed(true)
         if (fixHead) setHeadFixed(true)
         setDynamicScrollContext({
+          startIndex: newStartIndex,
           dataStates: newDataStates,
           prependSpace: targetSpace,
           appendSpace: fixFoot ? 0 : footFixed ? newAppendSpace : appendSpace,
@@ -453,15 +450,19 @@ export const DynamicScroll = <T extends DataBase>({
         console.log('scroll offset', scrollOffset)
         if (direction === 'x') {
           el.scrollLeft += scrollOffset
+          markScrollChange()
         } else {
           el.scrollTop += scrollOffset
+          markScrollChange()
         }
       }
     }
 
-    // check once more after apply changes
-    if (sortedTask.filter(i => i.action !== 'fixHead' && i.action !== 'fixFoot').length > 0)
-    performCheck()
+    // check once more after apply changes in case insert once isn't enough
+    if (sortedTask.filter(i => i.action !== 'fixHead' && i.action !== 'fixFoot').length > 0) {
+      // event here because it happen
+      performCheckEvent()
+    }
   })
 
   useEffect(() => {
@@ -493,6 +494,8 @@ export const DynamicScroll = <T extends DataBase>({
     }
   }
 
+  const onItemSizeUpdateEvent = useEvent(onItemSizeUpdate)
+
   const resizeRef = useObserveElements(onItemSizeUpdate)
 
   const createFactory = (direction: "next" | "prev", boundaryIndex: number): EntryFactory =>
@@ -501,14 +504,14 @@ export const DynamicScroll = <T extends DataBase>({
         return {
           resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
           updateSize: (newHeight) =>
-            onItemSizeUpdate(newHeight, boundaryIndex + index + 1),
+            onItemSizeUpdateEvent(newHeight, boundaryIndex + index + 1),
           index: boundaryIndex + index + 1,
         };
       } else {
         return {
           resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
           updateSize: (newHeight) =>
-            onItemSizeUpdate(newHeight, boundaryIndex - size + index),
+            onItemSizeUpdateEvent(newHeight, boundaryIndex - size + index),
           index: boundaryIndex - size + index,
         };
       }
@@ -526,8 +529,8 @@ export const DynamicScroll = <T extends DataBase>({
     const distanceToHead = currentScroll - currentContext.prependSpace
     const distanceToEnd = currentContext.prependSpace + heightSum - (currentScroll + currentSize)
 
-    const indexPrev = currentContext.dataStates.length > 0 ? currentContext.dataStates[0].index : 0
-    const indexNext = currentContext.dataStates.length > 0 ? currentContext.dataStates[currentContext.dataStates.length - 1].index : -1
+    const indexPrev = currentContext.startIndex
+    const indexNext = currentContext.startIndex + currentContext.dataStates.length - 1
 
     if (distanceToHead < preloadRange) {
       if (
@@ -540,6 +543,7 @@ export const DynamicScroll = <T extends DataBase>({
         const controller = new AbortController()
         onLoadMore('prev', createFactory('prev', indexPrev), currentContext.dataStates, controller.signal)
           .then(res => {
+            if (controller.signal.aborted) return
             removeJobOfType('loadPrev')
             if (res === END_OF_STREAM) {
               appendTask({
@@ -579,6 +583,7 @@ export const DynamicScroll = <T extends DataBase>({
         const controller = new AbortController()
         onLoadMore('next', createFactory('next', indexNext), currentContext.dataStates, controller.signal)
           .then(res => {
+            if (controller.signal.aborted) return
             removeJobOfType('loadNext')
             if (res === END_OF_STREAM) {
               appendTask({
@@ -609,6 +614,7 @@ export const DynamicScroll = <T extends DataBase>({
     }
 
     if (distanceToHead > maxLiveViewportPrev) {
+      removeTaskOfType('unloadPrev')
       const toUnloadDist = distanceToHead - maxLiveViewportPrev
       let sum = 0
       let count = 0
@@ -625,6 +631,7 @@ export const DynamicScroll = <T extends DataBase>({
       })
     }
     if (distanceToEnd > maxLiveViewportNext) {
+      removeTaskOfType('unloadNext')
       const toUnloadDist = distanceToEnd - maxLiveViewportNext
       let sum = 0
       let count = 0
@@ -643,6 +650,8 @@ export const DynamicScroll = <T extends DataBase>({
     }
   }
 
+  const performCheckEvent = useEvent(performCheck)
+
   const elements = useMemo(() => {
     return dynamicScrollContext.dataStates.map((i) => {
       return <div key={i.index} style={direction === 'y' ? {
@@ -655,6 +664,37 @@ export const DynamicScroll = <T extends DataBase>({
     })
   }, [dynamicScrollContext.dataStates, direction])
 
+  const prependedElement = useMemo(() => {
+    return prependContent ? <div className={`extra-${direction}`} style={direction === 'y' ? {
+      height: dynamicScrollContext.prependSpace + 'px'
+    } : {
+      width: dynamicScrollContext.prependSpace + 'px'
+    }}>
+      {prependContent}
+    </div> : undefined
+  }, [direction, dynamicScrollContext.prependSpace, prependContent])
+
+  const appendedElement = useMemo(() => {
+    return appendContent ? <div  className={`extra-${direction}`} style={direction === 'y' ? {
+      height: dynamicScrollContext.appendSpace + 'px',
+      transform: `translateY(${dynamicScrollContext.prependSpace +itemSizeSum}px)`
+    } : {
+      width: dynamicScrollContext.appendSpace + 'px',
+      transform: `translateX(${dynamicScrollContext.prependSpace +itemSizeSum}px)`
+    }}>
+      {appendContent}
+    </div> : undefined
+  }, [appendContent, direction, dynamicScrollContext.appendSpace, dynamicScrollContext.prependSpace, itemSizeSum])
+
+  const markScrollChange = useScrollingEvent({ ref: elementRef, onScrollChange(status) {
+    if (isScrolling.current && !status) {
+      isScrolling.current = status
+      appendTask({ 'action': 'resync' })
+    } else {
+      isScrolling.current = status
+    }
+  }, })
+
   return (
     <div
       {...props}
@@ -666,9 +706,8 @@ export const DynamicScroll = <T extends DataBase>({
     // onTouchMove={onTouchMove}
     // onTouchEnd={onTouchEnd}
     >
-      <div style={stageStyle}>
-
-      </div>
+      <div style={stageStyle} />
+      {prependedElement}
       <div
         className={`container-${direction}`}
         style={direction === 'y'
@@ -677,6 +716,7 @@ export const DynamicScroll = <T extends DataBase>({
         }>
         {elements}
       </div>
+      {appendedElement}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useRef, useInsertionEffect, useCallback, useState, useEffect } from 'react';
+import { useRef, useInsertionEffect, useCallback, useState, useEffect, RefObject, useLayoutEffect } from 'react';
 
 import { DataBase, DataEntry } from "./DynamicScroll";
 
@@ -73,11 +73,11 @@ export function useObserveElements(onSizeUpdate: (height: number, index: number)
         if (entryIndex >= 0) {
           return [
             ...entries.slice(0, entryIndex),
-            [el, index],
+            [el, index] satisfies [HTMLElement, number],
             ...entries.slice(index + 1),
           ];
         } else {
-          return [...entries.slice(0), [el, index] as const];
+          return [...entries.slice(0), [el, index] satisfies [HTMLElement, number]];
         }
       } else {
         return entries.filter((i) => i[1] !== index);
@@ -86,4 +86,114 @@ export function useObserveElements(onSizeUpdate: (height: number, index: number)
   }, []);
 
   return resizeRef
+}
+
+const hasScrollingEndSupport = 'onscrollend' in window
+const INTERACTION_DELAY = 100
+
+export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTMLElement>, onScrollChange: (status: boolean) => void}) => {
+  const currentlyScrolling = useRef(false)
+  const skipNextEnd = useRef(false)
+
+  const holding = useRef(false)
+
+  const updateScrolling = useEvent((status: boolean) => {
+    onScrollChange(status)
+    currentlyScrolling.current = status
+  })
+
+  useLayoutEffect(() => {
+    if (ref.current == null) return
+    const el = ref.current
+    
+    let id: ReturnType<typeof setTimeout> | null = null
+
+    const onTimeout = () => {
+      // assume scroll stopped if not holding
+      if (!holding.current && currentlyScrolling.current) {
+        updateScrolling(false)
+        console.log('scroll end by timeout', Date.now())
+      }
+    }
+
+    const onScroll = (ev: Event) => {
+      if (!currentlyScrolling.current && !skipNextEnd.current) {
+        updateScrolling(true)
+        console.log('scroll start', Date.now(), ev)
+      } else {
+        console.log('scroll', Date.now(), ev)
+      }
+      if (id != null) {
+        clearTimeout(id)
+      }
+      id = setTimeout(onTimeout, INTERACTION_DELAY)
+    }
+
+    const onScrollEnd = (ev: Event) => {
+      if (skipNextEnd.current) {
+        skipNextEnd.current = false
+        console.log('scroll end(skipped)', Date.now(), ev)
+        return
+      }
+
+      if (currentlyScrolling.current) {
+        if (holding.current) {
+          console.log('scroll end(skipped because user holding screen)', Date.now(), ev)
+        }
+        updateScrolling(false)
+        console.log('scroll end', Date.now(), ev)
+        if (id != null) {
+          clearTimeout(id)
+        }
+      }
+    }
+
+    const onTouchStart = () => {
+      if (!currentlyScrolling.current) {
+        updateScrolling(true)
+        console.log('scroll start because touch', Date.now())
+      }
+
+      holding.current = true
+      if (id != null) {
+        clearTimeout(id)
+      }
+    }
+
+    const onTouchEnd = (ev: TouchEvent) => {
+      console.log(ev)
+      for (const touch of ev.touches) {
+        if (el.contains(touch.target as Element)) {
+          return
+        }
+      }
+      holding.current = false
+      if (id != null) {
+        clearTimeout(id)
+      }
+      id = setTimeout(onTimeout, INTERACTION_DELAY)
+    }
+
+    el.addEventListener('scroll', onScroll)
+    el.addEventListener('scrollend', onScrollEnd)
+    el.addEventListener('touchstart', onTouchStart)
+    el.addEventListener('touchend', onTouchEnd)
+    el.addEventListener('touchcancel', onTouchEnd)
+
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      el.removeEventListener('scrollend', onScrollEnd)
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchend', onTouchEnd)
+      el.removeEventListener('touchcancel', onTouchEnd)
+    }
+  }, [ref])
+
+  const markScrollChange = useCallback(() => {
+    if (hasScrollingEndSupport) {
+      skipNextEnd.current = true
+    }
+  }, [])
+
+  return markScrollChange
 }

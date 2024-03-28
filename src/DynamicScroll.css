@@ -24,3 +24,15 @@
   width: 100%;
   top: 0;
 }
+
+.dyn .extra-x {
+  position: absolute;
+  height: 100%;
+  left: 0;
+}
+
+.dyn .extra-y {
+  position: absolute;
+  width: 100%;
+  top: 0;
+}
