@@ -1,12 +1,10 @@
 import {
   CSSProperties,
   ReactElement,
-  ReactNode,
-  useCallback,
-  useEffect,
+  ReactNode, useEffect,
   useMemo,
   useRef,
-  useState,
+  useState
 } from "react";
 import { flushSync } from "react-dom";
 import "./DynamicScroll.css";
@@ -46,7 +44,7 @@ export interface LoadHandler<Data extends DataBase> {
 }
 
 export interface ProgressHandler<Data extends DataBase> {
-  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[], signal: AbortSignal): void;
+  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[]): void;
 }
 
 export interface AnchorSelector<Data extends DataBase> {
@@ -263,8 +261,8 @@ export const DynamicScroll = <T extends DataBase>({
     return onSelectAnchor == null || onSelectAnchor == 'default'
       ? anchorStrategyDefault(entries, contentOffset, scroll, containerSize, lastTouchPosition)
       : onSelectAnchor === 'touch'
-      ? anchorStrategyTouch(entries, contentOffset, scroll, containerSize, lastTouchPosition)
-      : onSelectAnchor(entries, contentOffset, scroll, containerSize, lastTouchPosition)
+        ? anchorStrategyTouch(entries, contentOffset, scroll, containerSize, lastTouchPosition)
+        : onSelectAnchor(entries, contentOffset, scroll, containerSize, lastTouchPosition)
   })
 
   const onSizeUpdate = useEvent((newSize: number) => {
@@ -282,10 +280,10 @@ export const DynamicScroll = <T extends DataBase>({
       }
 
       // trigger initial load
-      performCheck()
+      onScrollEvent()
     } else if (screenHeight.current !== newSize) {
       screenHeight.current = newSize
-      performCheck()
+      onScrollEvent()
     }
   })
 
@@ -703,6 +701,20 @@ export const DynamicScroll = <T extends DataBase>({
   }
 
   const performCheckEvent = useEvent(performCheck)
+  const onScroll = () => {
+    performCheck()
+    const el = elementRef.current
+    if (!el) return
+
+    const currentContext = dynamicScrollContext
+    const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
+    const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+    const [index, offset] = anchorStrategyDefault(currentContext.dataStates, currentContext.prependSpace, currentScroll, currentSize, 0)
+    const currentItem = currentContext.dataStates.find(i => i.index === index)!
+    onProgress(currentItem, offset, currentContext.dataStates)
+  }
+
+  const onScrollEvent = useEvent(onScroll)
 
   const elements = useMemo(() => {
     return dynamicScrollContext.dataStates.map((i) => {
@@ -727,25 +739,27 @@ export const DynamicScroll = <T extends DataBase>({
   }, [direction, dynamicScrollContext.prependSpace, prependContent])
 
   const appendedElement = useMemo(() => {
-    return appendContent ? <div  className={`extra-${direction}`} style={direction === 'y' ? {
+    return appendContent ? <div className={`extra-${direction}`} style={direction === 'y' ? {
       height: dynamicScrollContext.appendSpace + 'px',
-      transform: `translateY(${dynamicScrollContext.prependSpace +itemSizeSum}px)`
+      transform: `translateY(${dynamicScrollContext.prependSpace + itemSizeSum}px)`
     } : {
       width: dynamicScrollContext.appendSpace + 'px',
-      transform: `translateX(${dynamicScrollContext.prependSpace +itemSizeSum}px)`
+      transform: `translateX(${dynamicScrollContext.prependSpace + itemSizeSum}px)`
     }}>
       {appendContent}
     </div> : undefined
   }, [appendContent, direction, dynamicScrollContext.appendSpace, dynamicScrollContext.prependSpace, itemSizeSum])
 
-  const markScrollChange = useScrollingEvent({ ref: elementRef, onScrollChange(status) {
-    if (isScrolling.current && !status) {
-      isScrolling.current = status
-      appendTask({ 'action': 'resync' })
-    } else {
-      isScrolling.current = status
-    }
-  }, })
+  const markScrollChange = useScrollingEvent({
+    ref: elementRef, onScrollChange(status) {
+      if (isScrolling.current && !status) {
+        isScrolling.current = status
+        appendTask({ 'action': 'resync' })
+      } else {
+        isScrolling.current = status
+      }
+    },
+  })
 
   return (
     <div
@@ -753,7 +767,7 @@ export const DynamicScroll = <T extends DataBase>({
       ref={elementRef}
       style={style}
       className={"dyn root" + (className ? `  ${className}` : "")}
-      onScroll={performCheck}
+      onScroll={onScroll}
     // onTouchStart={onTouchStart}
     // onTouchMove={onTouchMove}
     // onTouchEnd={onTouchEnd}
