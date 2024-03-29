@@ -89,7 +89,7 @@ export function useObserveElements(onSizeUpdate: (height: number, index: number)
 }
 
 const hasScrollingEndSupport = 'onscrollend' in window
-const INTERACTION_DELAY = 100
+const INTERACTION_DELAY = 200
 
 export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTMLElement>, onScrollChange: (status: boolean) => void}) => {
   const currentlyScrolling = useRef(false)
@@ -116,12 +116,13 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onScroll = (ev: Event) => {
       if (!currentlyScrolling.current && !skipNextEnd.current) {
         updateScrolling(true)
         console.log('scroll start', Date.now(), ev)
       } else {
-        console.log('scroll', Date.now(), ev)
+        // console.log('scroll', Date.now(), ev)
       }
       if (id != null) {
         clearTimeout(id)
@@ -129,16 +130,17 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       id = setTimeout(onTimeout, INTERACTION_DELAY)
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onScrollEnd = (ev: Event) => {
       if (skipNextEnd.current) {
         skipNextEnd.current = false
-        console.log('scroll end(skipped)', Date.now(), ev)
+        // console.log('scroll end(skipped)', Date.now(), ev)
         return
       }
 
       if (currentlyScrolling.current) {
         if (holding.current) {
-          console.log('scroll end(skipped because user holding screen)', Date.now(), ev)
+          // console.log('scroll end(skipped because user holding screen)', Date.now(), ev)
         }
         updateScrolling(false)
         console.log('scroll end', Date.now(), ev)
@@ -161,7 +163,7 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
     }
 
     const onTouchEnd = (ev: TouchEvent) => {
-      console.log(ev)
+      // console.log(ev)
       for (const touch of ev.touches) {
         if (el.contains(touch.target as Element)) {
           return
