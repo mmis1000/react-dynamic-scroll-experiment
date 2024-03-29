@@ -91,7 +91,9 @@ const anchorStrategyTouch: AnchorSelector<DataBase> = (entries, contentOffset, s
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 const anchorStrategyDefault: AnchorSelector<DataBase> = (entries, contentOffset, scroll, _containerSize, _lastTouchPosition) => getIndexAndOffsetWithDistance(entries, scroll - contentOffset)
 
-const REQUIRE_SAFARI_WORKAROUND = /safari/i.test(navigator.userAgent)
+const REQUIRE_SAFARI_WORKAROUND = !/Edg\//.test(navigator.userAgent) 
+  && !/Chrome\//.test(navigator.userAgent) 
+  && /safari/i.test(navigator.userAgent)
 
 const SCROLL_RESET_THRESHOLD = 50
 
