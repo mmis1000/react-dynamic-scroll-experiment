@@ -112,15 +112,15 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       // assume scroll stopped if not holding
       if (!holding.current && currentlyScrolling.current) {
         updateScrolling(false)
-        console.log('scroll end by timeout', Date.now())
+        // console.log('scroll end by timeout', Date.now())
       }
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onScroll = (ev: Event) => {
+    const onScroll = (_ev: Event) => {
       if (!currentlyScrolling.current && !skipNextEnd.current) {
         updateScrolling(true)
-        console.log('scroll start', Date.now(), ev)
+        // console.log('scroll start', Date.now(), ev)
       } else {
         // console.log('scroll', Date.now(), ev)
       }
@@ -131,7 +131,7 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const onScrollEnd = (ev: Event) => {
+    const onScrollEnd = (_ev: Event) => {
       if (skipNextEnd.current) {
         skipNextEnd.current = false
         // console.log('scroll end(skipped)', Date.now(), ev)
@@ -143,7 +143,7 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
           // console.log('scroll end(skipped because user holding screen)', Date.now(), ev)
         }
         updateScrolling(false)
-        console.log('scroll end', Date.now(), ev)
+        // console.log('scroll end', Date.now(), ev)
         if (id != null) {
           clearTimeout(id)
         }
@@ -153,7 +153,7 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
     const onTouchStart = () => {
       if (!currentlyScrolling.current) {
         updateScrolling(true)
-        console.log('scroll start because touch', Date.now())
+        // console.log('scroll start because touch', Date.now())
       }
 
       holding.current = true

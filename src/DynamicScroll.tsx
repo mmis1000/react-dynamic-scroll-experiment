@@ -84,7 +84,7 @@ const anchorStrategyTouch: AnchorSelector<DataBase> = (entries, contentOffset, s
 
   const lastHeight = getHeight(entries[entries.length - 1]);
   const res = [entries[entries.length - 1]!.index, currentOffset + lastHeight - lastTouchPosition] satisfies [number, number]
-  console.log(res, anchorStrategyDefault(entries, contentOffset, scroll, _containerSize, lastTouchPosition))
+  // console.log(res, anchorStrategyDefault(entries, contentOffset, scroll, _containerSize, lastTouchPosition))
   return res;
 };
 
@@ -286,7 +286,7 @@ export const DynamicScroll = <T extends DataBase>({
       const el = elementRef.current!
       screenHeight.current = newSize
 
-      console.log('initial scroll to', newContainerOffset)
+      // console.log('initial scroll to', newContainerOffset)
       if (direction === 'x') {
         el.scrollLeft = newContainerOffset
       } else {
@@ -396,9 +396,9 @@ export const DynamicScroll = <T extends DataBase>({
     let tweakUnloadDistPrev: 'grow' | 'reset' | null = null
     let tweakUnloadDistNext: 'grow' | 'reset' | null = null
 
-    if (tasks.length > 0) {
-      console.log(tasks)
-    }
+    // if (tasks.length > 0) {
+    //   console.log(tasks)
+    // }
 
     for (const task of sortedNonPatchTask) {
       // console.log('execute', task, newDataStates)
@@ -478,7 +478,7 @@ export const DynamicScroll = <T extends DataBase>({
 
       const newPosition = newPrependSpace + getDistanceWithIndexAndOffset(newDataStates, initialIndexAndOffset[0], initialIndexAndOffset[1])
       newPrependSpace -= (newPosition - initialPosition)
-      console.log('patch finished with offset ', (newPosition - initialPosition), ' and ', patchTasks.length, ' tasks')
+      // console.log('patch finished with offset ', (newPosition - initialPosition), ' and ', patchTasks.length, ' tasks')
     }
 
     const heightSum = newDataStates.reduce((p, c) => p + c.size, 0)
@@ -515,12 +515,12 @@ export const DynamicScroll = <T extends DataBase>({
       const scrollLeft = el.scrollLeft
       const scrollTop = el.scrollTop
 
-      console.log(
-        'target ', targetSpace,
-        'current', newPrependSpace, 
-        'scroll pos', direction === 'x' ? scrollLeft : scrollTop,
-        'target scroll', (direction === 'x' ? scrollLeft : scrollTop) + scrollOffset
-      )
+      // console.log(
+      //   'target ', targetSpace,
+      //   'current', newPrependSpace, 
+      //   'scroll pos', direction === 'x' ? scrollLeft : scrollTop,
+      //   'target scroll', (direction === 'x' ? scrollLeft : scrollTop) + scrollOffset
+      // )
       flushSync(() => {
         if (fixFoot) setFootFixed(true)
         if (fixHead) setHeadFixed(true)
@@ -560,7 +560,7 @@ export const DynamicScroll = <T extends DataBase>({
           }
           el.getBoundingClientRect()
 
-          console.log(el.scrollLeft, el.scrollTop)
+          // console.log(el.scrollLeft, el.scrollTop)
         }
       }
     }
@@ -757,13 +757,13 @@ export const DynamicScroll = <T extends DataBase>({
     }
 
 
-    console.log(REQUIRE_SAFARI_WORKAROUND, currentContext.prependSpace, currentScroll, headFixed)
+    // console.log(REQUIRE_SAFARI_WORKAROUND, currentContext.prependSpace, currentScroll, headFixed)
 
     if (REQUIRE_SAFARI_WORKAROUND 
       && isScrolling.current
       && currentScroll < SCROLL_RESET_THRESHOLD
       && !headFixed) {
-        console.log('force reset')
+        // console.log('force reset')
       appendTask({ 'action': 'forceSync' })
     }
   }
