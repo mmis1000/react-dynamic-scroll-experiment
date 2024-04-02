@@ -27,12 +27,14 @@
 
 .dyn .extra-x {
   position: absolute;
+  overflow: hidden;
   height: 100%;
   left: 0;
 }
 
 .dyn .extra-y {
   position: absolute;
+  overflow: hidden;
   width: 100%;
   top: 0;
 }
