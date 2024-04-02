@@ -508,7 +508,7 @@ export const DynamicScroll = <T extends DataBase>({
     const fixHead = sortedNonPatchTask.find(i => i.action === 'fixHead') != null
     const fixFoot = sortedNonPatchTask.find(i => i.action === 'fixFoot') != null
 
-    const forcedScrollSync = sortedNonPatchTask.find(i => i.action === 'forceSync') != null
+    const forcedScrollSync = fixHead || sortedNonPatchTask.find(i => i.action === 'forceSync') != null
 
     if (isScrolling.current && REQUIRE_SAFARI_WORKAROUND && !forcedScrollSync) {
       // flushSync(() => {
