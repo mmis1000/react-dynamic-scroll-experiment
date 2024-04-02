@@ -8,6 +8,7 @@ import "./DemoRealWorld1.css";
 import { END_OF_STREAM } from "./DynamicScrollUtils";
 
 const COUNT = 10;
+const DEFAULT_HEIGHT = 700
 
 const API_BASE = "https://api.pexels.com/v1/curated";
 const API_KEY = "S6Q7YlUQjfI3zdss4TANCEKEs2FuYhLz6Bi4GT5mGNFJfN6dfnqYL02y";
@@ -76,6 +77,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     ? Number(initialPageStr)
     : 1;
   const initialPageRefed = useRef(initialPageParsed);
+  const initialPrependSpace = useRef(initialPageRefed.current * DEFAULT_HEIGHT * COUNT)
 
   const onLoadMore: LoadHandler<Data> = async (
     direction,
@@ -93,7 +95,15 @@ export function DemoRealWorld1({ className }: { className?: string }) {
 
     if (bound == null) {
       if (direction === "prev") {
-        return END_OF_STREAM;
+        page = initialPageRefed.current - 1;
+        if (page < 1) {
+          return END_OF_STREAM;
+        } else {
+          pageSize = COUNT;
+          const { photos } = await getData(_signal, page, COUNT);
+          fullItems = items = photos;
+          baseItemIndex = 0;
+        }
       } else {
         page = initialPageRefed.current;
         pageSize = COUNT;
@@ -170,6 +180,9 @@ export function DemoRealWorld1({ className }: { className?: string }) {
   const [currentTotalImage, setCurrentTotalImage] = useState(0);
 
   const onProgress: ProgressHandler<Data> = (current) => {
+    if (current == null) {
+      return
+    }
     setCurrentPage(current.data.page);
     setCurrentImage(current.data.itemIndex + 1);
     setCurrentTotalImage(current.data.pageSize);
@@ -179,6 +192,9 @@ export function DemoRealWorld1({ className }: { className?: string }) {
     <>
       <DynamicScroll
         className={className ? "real " + className : "real"}
+        initialHeadLocked={true}
+        initialPrependSpace={initialPrependSpace.current}
+
         prependSpace={100}
         appendSpace={100}
         preloadRange={3000}

@@ -44,7 +44,7 @@ export interface LoadHandler<Data extends DataBase> {
 }
 
 export interface ProgressHandler<Data extends DataBase> {
-  (current: DataEntry<Data>, offset: number, dataList: DataEntry<Data>[]): void;
+  (current: DataEntry<Data> | undefined, offset: number, dataList: DataEntry<Data>[]): void;
 }
 
 export interface AnchorSelector<Data extends DataBase> {
@@ -76,7 +76,8 @@ const anchorStrategyTouch: AnchorSelector<DataBase> = (entries, contentOffset, s
 
   for (let i = 0; i < entries.length; i++) {
     const height = getHeight(entries[i]);
-    if (currentOffset < height) {
+    // FIXME: workaround subpixel scroll
+    if (currentOffset < height - 1) {
       return [entries[i]!.index, currentOffset];
     }
     currentOffset -= height;
@@ -110,6 +111,10 @@ function fixFreezingScrollBar(el: HTMLElement, direction: 'x' | 'y', scrollPos: 
 interface RawDynamicScrollProps<Data extends DataBase> {
   initialHeadLocked?: boolean;
   initialFootLocked?: boolean
+  initialPrependSpace?: number
+  initialAppendSpace?: number
+  initialOffset?: number
+
   prependSpace?: number;
   appendSpace?: number;
   preloadRange?: number;
@@ -141,6 +146,7 @@ const getIndexAndOffsetWithDistance = (
   distance: number
 ): [index: number, offset: number] => {
   if (entries.length === 0) {
+    console.log([0, distance])
     return [0, distance];
   }
 
@@ -152,7 +158,9 @@ const getIndexAndOffsetWithDistance = (
 
   for (let i = 0; i < entries.length; i++) {
     const height = getHeight(entries[i]);
-    if (currentOffset < height) {
+    // FIXME: workaround subpixel scroll
+    if (currentOffset <= height - 1) {
+      console.log([entries[i]!.index, currentOffset, height])
       return [entries[i]!.index, currentOffset];
     }
     currentOffset -= height;
@@ -160,6 +168,7 @@ const getIndexAndOffsetWithDistance = (
 
   const lastHeight = getHeight(entries[entries.length - 1]);
 
+  console.log([entries[entries.length - 1]!.index, currentOffset + lastHeight])
   return [entries[entries.length - 1]!.index, currentOffset + lastHeight];
 };
 
@@ -197,6 +206,9 @@ interface DynamicScrollContext<T extends DataBase> {
 export const DynamicScroll = <T extends DataBase>({
   initialHeadLocked = false,
   initialFootLocked = false,
+  initialPrependSpace,
+  initialAppendSpace,
+  initialOffset,
   prependSpace = 0,
   appendSpace = 0,
   maxLiveViewport: maxLiveViewportProp = 3000,
@@ -237,10 +249,12 @@ export const DynamicScroll = <T extends DataBase>({
     minMaxLiveViewportPrev: 0,
     minMaxLiveViewportNext: 0,
     // this is altered when insert/remove new items/resize
-    prependSpace: initialHeadLocked ? 0 : prependSpace,
+    prependSpace: initialHeadLocked ? (initialPrependSpace ?? 0) : (initialPrependSpace ?? prependSpace),
     // this is altered when insert/remove new items/resize
-    appendSpace: appendSpace,
+    appendSpace: initialFootLocked ? (initialAppendSpace ?? 0) : (initialAppendSpace ?? appendSpace),
   }))
+
+  console.log(dynamicScrollContext.prependSpace)
 
   const maxLiveViewportPrev = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewportPrev);
   const maxLiveViewportNext = Math.max(maxLiveViewportProp, dynamicScrollContext.minMaxLiveViewportNext);
@@ -257,7 +271,7 @@ export const DynamicScroll = <T extends DataBase>({
         width: stageSize + 'px',
       }),
       ...(prependSpace > 0 || appendSpace > 0 ? {
-        minHeight: '200%'
+        minHeight: `calc(100% + ${stageSize}px`
       } : {})
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -284,15 +298,15 @@ export const DynamicScroll = <T extends DataBase>({
   const onSizeUpdate = useEvent((newSize: number) => {
     if (screenHeight.current === -1) {
       // perform initial setup
-      const newContainerOffset = prependSpace
+      const newContainerOffset = initialPrependSpace ?? prependSpace
       const el = elementRef.current!
       screenHeight.current = newSize
 
       // console.log('initial scroll to', newContainerOffset)
       if (direction === 'x') {
-        el.scrollLeft = newContainerOffset
+        el.scrollLeft = newContainerOffset + (initialOffset ?? 0)
       } else {
-        el.scrollTop = newContainerOffset
+        el.scrollTop = newContainerOffset + (initialOffset ?? 0)
       }
 
       // trigger initial load
