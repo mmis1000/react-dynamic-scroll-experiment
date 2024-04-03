@@ -54,6 +54,7 @@ export interface LoadHandler<Data extends DataBase> {
 export interface ProgressHandler<Data extends DataBase> {
   (
     current: DataEntry<Data> | undefined,
+    index: number,
     offset: number,
     dataList: DataEntry<Data>[]
   ): void
@@ -114,9 +115,7 @@ const anchorStrategyDefault: AnchorSelector<DataBase> = (
   entries,
   contentOffset,
   scroll,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _containerSize,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   _lastTouchPosition
 ) => getIndexAndOffsetWithDistance(entries, scroll - contentOffset)
 
@@ -146,6 +145,7 @@ interface RawDynamicScrollProps<Data extends DataBase> {
   initialFootLocked?: boolean
   initialPrependSpace?: number
   initialAppendSpace?: number
+  initialIndex?: number
   initialOffset?: number
 
   prependSpace?: number
@@ -241,6 +241,7 @@ export const DynamicScroll = <T extends DataBase>({
   initialFootLocked = false,
   initialPrependSpace,
   initialAppendSpace,
+  initialIndex,
   initialOffset,
   prependSpace = 0,
   appendSpace = 0,
@@ -276,7 +277,7 @@ export const DynamicScroll = <T extends DataBase>({
   const [dynamicScrollContext, setDynamicScrollContext] = useState<
     DynamicScrollContext<T>
   >(() => ({
-    startIndex: 0,
+    startIndex: initialIndex ?? 0,
     dataStates: [],
     // recalculation of minMaxLiveViewport relies on this
     screenHeight: -1,
@@ -749,7 +750,7 @@ export const DynamicScroll = <T extends DataBase>({
       const currentItem = currentContext.dataStates.find(
         (i) => i.index === index
       )
-      onProgress(currentItem, offset, currentContext.dataStates)
+      onProgress(currentItem, index, offset, currentContext.dataStates)
     }
   })
 
@@ -988,7 +989,7 @@ export const DynamicScroll = <T extends DataBase>({
       lastTouchPosition.current
     )
     const currentItem = currentContext.dataStates.find((i) => i.index === index)
-    onProgress(currentItem, offset, currentContext.dataStates)
+    onProgress(currentItem, index, offset, currentContext.dataStates)
   }
 
   const onScrollEvent = useEvent(onScroll)

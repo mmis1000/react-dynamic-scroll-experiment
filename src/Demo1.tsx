@@ -8,7 +8,6 @@ const DELAY = 200
 export function Demo1 ({
     className
 }: { className?: string }) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onLoadMore: LoadHandler<{ index: number, initialHeight: number }> = async (_direction, factory, _data, _signal) => {
       await new Promise<void>(resolve => setTimeout(resolve, DELAY))
       const arr: Array<[ReactElement<DynamicChildElementProps>, { index: number, initialHeight: number }]> = []

@@ -116,7 +116,6 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onScroll = (_ev: Event) => {
       if (!currentlyScrolling.current && !skipNextEnd.current) {
         updateScrolling(true)
@@ -130,7 +129,6 @@ export const useScrollingEvent = ({ ref, onScrollChange }: { ref: RefObject<HTML
       id = setTimeout(onTimeout, INTERACTION_DELAY)
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const onScrollEnd = (_ev: Event) => {
       if (skipNextEnd.current) {
         skipNextEnd.current = false

@@ -140,12 +140,11 @@ export function Demo2({
     }
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const onLoadMore: LoadHandler<BoxDef & DataBase> = async (direction, factory, _data, _signal) => {
+  const onLoadMore: LoadHandler<BoxDef & DataBase> = async (direction, factory, data, _signal) => {
     await new Promise<void>(resolve => setTimeout(resolve, DELAY))
 
     const arr: Array<[ReactElement<DynamicChildElementProps>, BoxDef & DataBase]> = []
-    let currentBox: BoxDef = (direction === 'prev' ? _data[0]?.data : _data[_data.length - 1]?.data) ?? { ...ROOT_BOX }
+    let currentBox: BoxDef = (direction === 'prev' ? data[0]?.data : data[data.length - 1]?.data) ?? { ...ROOT_BOX }
 
     for (let i = 0; i < COUNT; i++) {
       const color = ~~(360 * Math.random())

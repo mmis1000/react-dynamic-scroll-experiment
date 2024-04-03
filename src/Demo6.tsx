@@ -26,7 +26,6 @@ export function Demo6({
   const onLoadMore: LoadHandler<{
     index: number;
     initialHeight: number;
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   }> = async (_direction, factory, _data, _signal) => {
     await new Promise<void>((resolve) => setTimeout(resolve, DELAY));
     const arr: Array<
