@@ -28,7 +28,6 @@ const getData = async (signal: AbortSignal, page: number, pageSize: number) => {
   });
   const res = await fetch(request);
   const json = await res.json();
-  console.log(json);
   return json as { photos: PhotoItem[] };
 };
 
@@ -63,21 +62,32 @@ const ImageElement = forwardRef<
         src={data.src.medium}
         style={{ width: "100%", flex: "0 0 auto" }}
         width={400}
-        height={loaded ? undefined : 300}
+        height={loaded ? undefined : 700}
       />
       {children}
     </div>
   );
 });
 
-export function DemoRealWorld1({ className }: { className?: string }) {
+const useInitialPageParam = function <T>(name: string, defaultValue: string, transform: (str: string) => T) {
   const url = new URL(location.href);
-  const initialPageStr = url.searchParams.get("page") ?? "1";
-  const initialPageParsed = /\d+/.test(initialPageStr)
-    ? Number(initialPageStr)
-    : 1;
+  const initialPageStr = url.searchParams.get(name) ?? defaultValue;
+  const initialPageParsed = transform(initialPageStr)
   const initialPageRefed = useRef(initialPageParsed);
-  const initialPrependSpace = useRef(initialPageRefed.current * DEFAULT_HEIGHT * COUNT)
+  return initialPageRefed.current
+}
+
+export function DemoRealWorld1({ className }: { className?: string }) {
+  const initialPage = useInitialPageParam("page", "1", str => /\d+/.test(str)
+  ? Number(str)
+  : 1)
+  const initialScroll = useInitialPageParam("scroll", "0", str => /\d+/.test(str)
+  ? Number(str)
+  : 1)
+  const initialItemIndex = useInitialPageParam("item", "1", str => /\d+/.test(str)
+  ? Number(str) - 1
+  : 0)
+  const initialPrependSpace = useRef(initialPage * DEFAULT_HEIGHT * COUNT)
 
   const onLoadMore: LoadHandler<Data> = async (
     direction,
@@ -95,21 +105,35 @@ export function DemoRealWorld1({ className }: { className?: string }) {
 
     if (bound == null) {
       if (direction === "prev") {
-        page = initialPageRefed.current - 1;
-        if (page < 1) {
-          return END_OF_STREAM;
+        if (initialItemIndex !== 0) {
+          page = initialPage;
+          if (page < 1) {
+            return END_OF_STREAM;
+          } else {
+            pageSize = COUNT;
+            const { photos } = await getData(_signal, page, COUNT);
+            fullItems = photos;
+            items = photos.slice(0, initialItemIndex)
+            baseItemIndex = 0;
+          }
         } else {
-          pageSize = COUNT;
-          const { photos } = await getData(_signal, page, COUNT);
-          fullItems = items = photos;
-          baseItemIndex = 0;
+          page = initialPage - 1;
+          if (page < 1) {
+            return END_OF_STREAM;
+          } else {
+            pageSize = COUNT;
+            const { photos } = await getData(_signal, page, COUNT);
+            fullItems = items = photos;
+            baseItemIndex = 0;
+          }
         }
       } else {
-        page = initialPageRefed.current;
+        page = initialPage;
         pageSize = COUNT;
         const { photos } = await getData(_signal, page, COUNT);
-        fullItems = items = photos;
-        baseItemIndex = 0;
+        fullItems = photos;
+        items = photos.slice(initialItemIndex, photos.length)
+        baseItemIndex = initialItemIndex;
       }
     } else if (
       direction === "prev"
@@ -179,10 +203,29 @@ export function DemoRealWorld1({ className }: { className?: string }) {
   const [currentImage, setCurrentImage] = useState(0);
   const [currentTotalImage, setCurrentTotalImage] = useState(0);
 
-  const onProgress: ProgressHandler<Data> = (current) => {
+  const rafId = useRef<null | ReturnType<typeof setTimeout>>(null)
+
+  const onProgress: ProgressHandler<Data> = (current, index, offset, full) => {
     if (current == null) {
       return
     }
+
+    console.log(current, index, offset, full)
+
+    if (rafId.current != null) {
+      clearTimeout(rafId.current)
+    }
+
+    rafId.current = setTimeout(() => {
+      const url = new URL(location.href)
+      if (String(offset) !== url.searchParams.get('offset')) {
+        url.searchParams.set('page', String(current.data.page))
+        url.searchParams.set('item', String(current.data.itemIndex + 1))
+        url.searchParams.set('scroll', String(offset))
+        history.replaceState(undefined, '', url)
+      }
+    }, 100)
+
     setCurrentPage(current.data.page);
     setCurrentImage(current.data.itemIndex + 1);
     setCurrentTotalImage(current.data.pageSize);
@@ -193,6 +236,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
       <DynamicScroll
         className={className ? "real " + className : "real"}
         initialHeadLocked={true}
+        initialOffset={initialScroll}
         initialPrependSpace={initialPrependSpace.current}
 
         prependSpace={100}
