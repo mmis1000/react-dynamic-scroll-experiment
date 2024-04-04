@@ -268,7 +268,8 @@ export const DynamicScroll = <T extends DataBase>({
   const [headFixed, setHeadFixed] = useState(initialHeadLocked)
   const [footFixed, setFootFixed] = useState(initialFootLocked)
 
-  const [initialAppendFinished, setInitialAppendFinished] = useState(footFixed)
+  const [initialPrependFinished, setInitialPrependFinished] = useState(false)
+  const [initialAppendFinished, setInitialAppendFinished] = useState(false)
 
   // const [currentPrependSpace, setPrependSpace, prependSpaceRef] = useRefState(initialHeadLocked ? 0 : prependSpace);
   // const [currentAppendSpace, setAppendSpace, appendSpaceRef] = useRefState(appendSpace);
@@ -328,7 +329,7 @@ export const DynamicScroll = <T extends DataBase>({
         }),
       ...((prependSpace > 0 || appendSpace > 0) && !footFixed && !initialAppendFinished
         ? {
-          minHeight: `calc(100% + ${stageSize}px`,
+          minHeight: `calc(100% + ${stageSize + (initialOffset ?? 0)}px`,
         }
         : {}),
     }
@@ -716,12 +717,26 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
 
+    let initialAppended = initialAppendFinished
+
     if (!initialAppendFinished && sortedNonPatchTask.filter(
       (i) =>
         i.action === 'fixFoot' ||
         i.action === 'append'
     ).length > 0) {
+      initialAppended = true
       setInitialAppendFinished(true)
+    }
+
+
+    let initialPrepended = initialPrependFinished
+    if (!initialPrependFinished && sortedNonPatchTask.filter(
+      (i) =>
+        i.action === 'fixHead' ||
+        i.action === 'prepend'
+    ).length > 0) {
+      initialPrepended = true
+      setInitialPrependFinished(true)
     }
 
     // check once more after apply changes in case insert/shrink once isn't enough
@@ -747,20 +762,22 @@ export const DynamicScroll = <T extends DataBase>({
           i.action === 'unloadPrev'
       ) != null
     ) {
-      const currentContext = dynamicScrollContext
       const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
       const [index, offset] = anchorStrategyDefault(
-        currentContext.dataStates,
-        currentContext.prependSpace,
+        newDataStates,
+        newPrependSpace,
         currentScroll,
         currentSize,
         lastTouchPosition.current
       )
-      const currentItem = currentContext.dataStates.find(
+      const currentItem = newDataStates.find(
         (i) => i.index === index
       )
-      onProgress(currentItem, index, offset, currentContext.dataStates)
+      // do not emit progress unless initial loaded
+      if (initialAppended && initialPrepended) {
+        onProgress(currentItem, index, offset, newDataStates)
+      }
     }
   })
 
