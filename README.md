@@ -30,8 +30,5 @@ If you are developing a production application, we recommend updating the config
 
 ## TODOS
 
-- [ ] also emit scroll offset and index in the progress events
-- [ ] use the index to load content in real-world examples instead so it does not mess up when everything are unloaded
-- [ ] handle initial index
 - [ ] handle initial offset from the bottom (chatroom style)
 - [ ] handle progress events from the bottom (chatroom style)
