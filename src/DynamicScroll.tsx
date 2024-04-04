@@ -749,8 +749,11 @@ export const DynamicScroll = <T extends DataBase>({
           i.action !== 'forceSync'
       ).length > 0
     ) {
-      // event here because it happen
-      performCheckEvent()
+      // FIXME: some proper way to trigger after react state update
+      requestAnimationFrame(() => {
+        // event here because it need to happen after refresh
+        performCheckEvent()
+      })
     }
 
     if (
