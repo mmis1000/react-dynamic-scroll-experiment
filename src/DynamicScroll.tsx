@@ -126,6 +126,8 @@ const REQUIRE_SAFARI_WORKAROUND =
 
 const SCROLL_RESET_THRESHOLD = 50
 
+const MIN_KEEPALIVE = 1
+
 function fixFreezingScrollBar(
   el: HTMLElement,
   direction: 'x' | 'y',
@@ -543,7 +545,7 @@ export const DynamicScroll = <T extends DataBase>({
         }
         case 'unloadPrev': {
           tweakUnloadDistPrev = 'reset'
-          const toUnload = Math.min(newDataStates.length, task.count)
+          const toUnload = Math.max(Math.min(newDataStates.length - MIN_KEEPALIVE, task.count), 0)
           const unloadedItems = newDataStates.slice(0, toUnload)
           const heightSum = unloadedItems.reduce((p, c) => p + c.size, 0)
           // console.log('removeHeight prev', heightSum)
@@ -554,7 +556,7 @@ export const DynamicScroll = <T extends DataBase>({
         }
         case 'unloadNext': {
           tweakUnloadDistNext = 'reset'
-          const toUnload = Math.min(newDataStates.length, task.count)
+          const toUnload = Math.max(Math.min(newDataStates.length - MIN_KEEPALIVE, task.count), 0)
           const unloadedItems = newDataStates.slice(
             newDataStates.length - toUnload,
             newDataStates.length
@@ -923,7 +925,7 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
 
-    if (distanceToHead > maxLiveViewportPrev) {
+    if (distanceToHead > maxLiveViewportPrev && currentContext.dataStates.length > MIN_KEEPALIVE) {
       removeTaskOfType('unloadPrev')
       const toUnloadDist = distanceToHead - maxLiveViewportPrev
       let sum = 0
@@ -940,7 +942,7 @@ export const DynamicScroll = <T extends DataBase>({
         count,
       })
     }
-    if (distanceToEnd > maxLiveViewportNext) {
+    if (distanceToEnd > maxLiveViewportNext && currentContext.dataStates.length > MIN_KEEPALIVE) {
       removeTaskOfType('unloadNext')
       const toUnloadDist = distanceToEnd - maxLiveViewportNext
       let sum = 0
