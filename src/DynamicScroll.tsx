@@ -296,8 +296,6 @@ export const DynamicScroll = <T extends DataBase>({
       : initialAppendSpace ?? appendSpace,
   }))
 
-  console.log(dynamicScrollContext.prependSpace)
-
   const maxLiveViewportPrev = Math.max(
     maxLiveViewportProp,
     dynamicScrollContext.minMaxLiveViewportPrev
