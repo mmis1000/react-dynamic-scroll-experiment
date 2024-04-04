@@ -199,8 +199,8 @@ export function DemoRealWorld1({ className }: { className?: string }) {
         appendSpace={100}
         preloadRange={3000}
         maxLiveViewport={6000}
-        prependContent="Loading..."
-        appendContent="Loading..."
+        prependContent={<div style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-end' }}>"Loading..."</div>}
+        appendContent={<div style={{ height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>"Loading..."</div>}
         onLoadMore={onLoadMore}
         onProgress={onProgress}
         onSelectAnchor={'touch'}

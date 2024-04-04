@@ -30,7 +30,7 @@ export interface DataEntry<T extends DataBase> {
   data: T
 }
 
-export interface DynamicChildElementProps {}
+export interface DynamicChildElementProps { }
 
 export interface EntryFactory {
   (index: number, size: number): {
@@ -250,7 +250,7 @@ export const DynamicScroll = <T extends DataBase>({
   maxLiveViewport: maxLiveViewportProp = 3000,
   preloadRange = 1000,
   onLoadMore,
-  onProgress = () => {},
+  onProgress = () => { },
   prependContent,
   appendContent,
   className,
@@ -267,6 +267,8 @@ export const DynamicScroll = <T extends DataBase>({
 
   const [headFixed, setHeadFixed] = useState(initialHeadLocked)
   const [footFixed, setFootFixed] = useState(initialFootLocked)
+
+  const [initialAppendFinished, setInitialAppendFinished] = useState(footFixed)
 
   // const [currentPrependSpace, setPrependSpace, prependSpaceRef] = useRefState(initialHeadLocked ? 0 : prependSpace);
   // const [currentAppendSpace, setAppendSpace, appendSpaceRef] = useRefState(appendSpace);
@@ -319,15 +321,15 @@ export const DynamicScroll = <T extends DataBase>({
     return {
       ...(direction === 'y'
         ? {
-            height: stageSize + 'px',
-          }
+          height: stageSize + 'px',
+        }
         : {
-            width: stageSize + 'px',
-          }),
-      ...((prependSpace > 0 || appendSpace > 0) && !footFixed
+          width: stageSize + 'px',
+        }),
+      ...((prependSpace > 0 || appendSpace > 0) && !footFixed && !initialAppendFinished
         ? {
-            minHeight: `calc(100% + ${stageSize}px`,
-          }
+          minHeight: `calc(100% + ${stageSize}px`,
+        }
         : {}),
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -347,21 +349,21 @@ export const DynamicScroll = <T extends DataBase>({
     ) => {
       return onSelectAnchor == null || onSelectAnchor == 'default'
         ? anchorStrategyDefault(
-            entries,
-            contentOffset,
-            scroll,
-            containerSize,
-            lastTouchPosition
-          )
+          entries,
+          contentOffset,
+          scroll,
+          containerSize,
+          lastTouchPosition
+        )
         : onSelectAnchor === 'touch'
-        ? anchorStrategyTouch(
+          ? anchorStrategyTouch(
             entries,
             contentOffset,
             scroll,
             containerSize,
             lastTouchPosition
           )
-        : onSelectAnchor(
+          : onSelectAnchor(
             entries,
             contentOffset,
             scroll,
@@ -420,38 +422,38 @@ export const DynamicScroll = <T extends DataBase>({
 
   type Task =
     | {
-        action: 'prepend'
-        items: DataEntry<T>[]
-      }
+      action: 'prepend'
+      items: DataEntry<T>[]
+    }
     | {
-        action: 'append'
-        items: DataEntry<T>[]
-      }
+      action: 'append'
+      items: DataEntry<T>[]
+    }
     | {
-        action: 'unloadPrev'
-        count: number
-      }
+      action: 'unloadPrev'
+      count: number
+    }
     | {
-        action: 'unloadNext'
-        count: number
-      }
+      action: 'unloadNext'
+      count: number
+    }
     | {
-        action: 'patch'
-        items: Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
-      }
+      action: 'patch'
+      items: Pick<DataEntry<T>, 'index' | 'data' | 'size'>[]
+    }
     | {
-        action: 'fixHead'
-      }
+      action: 'fixHead'
+    }
     | {
-        action: 'fixFoot'
-      }
+      action: 'fixFoot'
+    }
     | {
-        action: 'resync'
-      }
+      action: 'resync'
+    }
     | {
-        // resync with forced scroll position patch
-        action: 'forceSync'
-      }
+      // resync with forced scroll position patch
+      action: 'forceSync'
+    }
 
   const pendingJob = useRef<Job[]>([])
   const taskList = useRef<Task[]>([])
@@ -714,6 +716,14 @@ export const DynamicScroll = <T extends DataBase>({
       }
     }
 
+    if (!initialAppendFinished && sortedNonPatchTask.filter(
+      (i) =>
+        i.action === 'fixFoot' ||
+        i.action === 'append'
+    ).length > 0) {
+      setInitialAppendFinished(true)
+    }
+
     // check once more after apply changes in case insert/shrink once isn't enough
     if (
       sortedNonPatchTask.filter(
@@ -789,23 +799,23 @@ export const DynamicScroll = <T extends DataBase>({
 
   const createFactory =
     (direction: 'next' | 'prev', boundaryIndex: number): EntryFactory =>
-    (index: number, size: number) => {
-      if (direction === 'next') {
-        return {
-          resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
-          updateSize: (newHeight) =>
-            onItemSizeUpdateEvent(newHeight, boundaryIndex + index + 1),
-          index: boundaryIndex + index + 1,
-        }
-      } else {
-        return {
-          resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
-          updateSize: (newHeight) =>
-            onItemSizeUpdateEvent(newHeight, boundaryIndex - size + index),
-          index: boundaryIndex - size + index,
+      (index: number, size: number) => {
+        if (direction === 'next') {
+          return {
+            resizeRef: (el) => resizeRef(el, boundaryIndex + index + 1),
+            updateSize: (newHeight) =>
+              onItemSizeUpdateEvent(newHeight, boundaryIndex + index + 1),
+            index: boundaryIndex + index + 1,
+          }
+        } else {
+          return {
+            resizeRef: (el) => resizeRef(el, boundaryIndex - size + index),
+            updateSize: (newHeight) =>
+              onItemSizeUpdateEvent(newHeight, boundaryIndex - size + index),
+            index: boundaryIndex - size + index,
+          }
         }
       }
-    }
 
   const performCheck = () => {
     const el = elementRef.current
@@ -1036,11 +1046,11 @@ export const DynamicScroll = <T extends DataBase>({
           style={
             direction === 'y'
               ? {
-                  height: i.size + 'px',
-                }
+                height: i.size + 'px',
+              }
               : {
-                  width: i.size + 'px',
-                }
+                width: i.size + 'px',
+              }
           }
         >
           {i.el}
@@ -1056,11 +1066,11 @@ export const DynamicScroll = <T extends DataBase>({
         style={
           direction === 'y'
             ? {
-                height: dynamicScrollContext.prependSpace + 'px',
-              }
+              height: dynamicScrollContext.prependSpace + 'px',
+            }
             : {
-                width: dynamicScrollContext.prependSpace + 'px',
-              }
+              width: dynamicScrollContext.prependSpace + 'px',
+            }
         }
       >
         {prependContent}
@@ -1075,17 +1085,15 @@ export const DynamicScroll = <T extends DataBase>({
         style={
           direction === 'y'
             ? {
-                height: dynamicScrollContext.appendSpace + 'px',
-                transform: `translateY(${
-                  dynamicScrollContext.prependSpace + itemSizeSum
+              height: dynamicScrollContext.appendSpace + 'px',
+              transform: `translateY(${dynamicScrollContext.prependSpace + itemSizeSum
                 }px)`,
-              }
+            }
             : {
-                width: dynamicScrollContext.appendSpace + 'px',
-                transform: `translateX(${
-                  dynamicScrollContext.prependSpace + itemSizeSum
+              width: dynamicScrollContext.appendSpace + 'px',
+              transform: `translateX(${dynamicScrollContext.prependSpace + itemSizeSum
                 }px)`,
-              }
+            }
         }
       >
         {appendContent}
@@ -1116,11 +1124,11 @@ export const DynamicScroll = <T extends DataBase>({
         style={
           direction === 'y'
             ? {
-                transform: `translateY(${dynamicScrollContext.prependSpace}px)`,
-              }
+              transform: `translateY(${dynamicScrollContext.prependSpace}px)`,
+            }
             : {
-                transform: `translateX(${dynamicScrollContext.prependSpace}px)`,
-              }
+              transform: `translateX(${dynamicScrollContext.prependSpace}px)`,
+            }
         }
         ref={containerRef}
       >
