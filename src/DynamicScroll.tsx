@@ -723,8 +723,13 @@ export const DynamicScroll = <T extends DataBase>({
         i.action === 'fixFoot' ||
         i.action === 'append'
     ).length > 0) {
-      initialAppended = true
-      setInitialAppendFinished(true)
+      const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
+      const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+
+      if (newPrependSpace + heightSum > currentScroll + currentSize) {
+        initialAppended = true
+        setInitialAppendFinished(true)
+      }
     }
 
 
