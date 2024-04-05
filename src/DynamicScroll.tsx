@@ -327,14 +327,13 @@ export const DynamicScroll = <T extends DataBase>({
         : {
           width: stageSize + 'px',
         }),
-      ...((prependSpace > 0 || appendSpace > 0) && !footFixed && !initialAppendFinished
+      ...(!initialAppendFinished
         ? {
           minHeight: `calc(100% + ${stageSize + (initialOffset ?? 0)}px`,
         }
         : {}),
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appendSpace > 0, direction, prependSpace > 0, stageSize])
+  }, [direction, initialAppendFinished, initialOffset, stageSize])
 
   const selectAnchor = useEvent(
     (
