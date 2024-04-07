@@ -32,3 +32,5 @@ If you are developing a production application, we recommend updating the config
 
 - [ ] handle initial offset from the bottom (chatroom style)
 - [ ] handle progress events from the bottom (chatroom style)
+- [ ] add `useImperativeHandle` to handle manually patched messages.
+- [ ] add `resize` event to handle components that require full resize after container size change.

@@ -166,6 +166,13 @@ interface RawDynamicScrollProps<Data extends DataBase> {
   appendContent?: ReactNode
   onSelectAnchor?: 'default' | 'touch' | AnchorSelector<Data>
   direction?: 'x' | 'y'
+
+  /** 
+   * Control how `offset` in `progress` event and value of `initialOffset` handled.
+   * When set to `end`, the progress is calculated against the bottom/right of screen instead.
+   * Useful for chatroom layout as it is usually start from the end of screen.
+   * */
+  scrollRoot?: 'start' | 'end'
 }
 
 type DivProps = React.HTMLAttributes<HTMLDivElement>
@@ -257,6 +264,7 @@ export const DynamicScroll = <T extends DataBase>({
   onSelectAnchor,
   style,
   direction = 'y',
+  scrollRoot = 'start',
   ...props
 }: DynamicScrollProps<T>) => {
   // this is only used in event to check if screen size is changed,
