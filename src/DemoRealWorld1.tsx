@@ -46,9 +46,10 @@ const ImageElement = forwardRef<
     style?: CSSProperties
     className?: string
     children?: ReactNode
-    data: PhotoItem
+    initialHeight?: number,
+    data: PhotoItem,
   }
->(({ style, className, children, data }, ref) => {
+>(({ style, className, children, data, initialHeight = 700 }, ref) => {
   const [loaded, setLoaded] = useState(false)
 
   return (
@@ -68,7 +69,7 @@ const ImageElement = forwardRef<
         src={data.src.medium}
         style={{ width: '100%', flex: '0 0 auto' }}
         width={400}
-        height={loaded ? undefined : 700}
+        height={loaded ? undefined : initialHeight}
       />
       {children}
     </div>
@@ -189,6 +190,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
           ref={entry.resizeRef}
           style={{ backgroundColor: data.avg_color }}
           data={data}
+          initialHeight={entry.index === 0 ? (initialScroll + 100) : (window.innerWidth / 3) * 4}
         >
           <div className="index">
             page {page}, {baseItemIndex + index2 + 1}/{pageSize}
@@ -204,7 +206,7 @@ export function DemoRealWorld1({ className }: { className?: string }) {
           pageSize,
           items: fullItems,
           itemIndex: baseItemIndex + index2,
-          initialHeight: (window.innerWidth / 3) * 4,
+          initialHeight: entry.index === 0 ? (initialScroll + 100) : (window.innerWidth / 3) * 4,
         },
       ]
     })

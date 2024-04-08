@@ -600,13 +600,15 @@ and it will prevent progress event from being fired.
       tweakUnloadDistPrev = 'grow'
       tweakUnloadDistNext = 'grow'
 
-      const initialIndexAndOffset = selectAnchor(
+      // do not perform scroll reset before initial load because it would corrupt initial scroll position
+      const initialIndexAndOffset = !initialAppendFinished ? [0, 0] as [number, number]: selectAnchor(
         newDataStates,
         newPrependSpace,
         currentScroll,
         currentSize,
         lastTouchPosition.current
       )
+
       const initialPosition =
         newPrependSpace +
         getDistanceWithIndexAndOffset(
