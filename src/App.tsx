@@ -11,6 +11,7 @@ import { Demo8 } from './Demo8'
 import { Demo9 } from './Demo9'
 import { Demo10 } from './Demo10'
 import { DemoRealWorld1 } from './DemoRealWorld1'
+import { DemoChat } from './DemoChat'
 
 function App() {
   const url = new URL(location.href)
@@ -58,6 +59,7 @@ function App() {
           Fixed end started at start
         </button>
         <button onClick={() => setCurrentDemo('demor1')}>real world</button>
+        <button onClick={() => setCurrentDemo('demochat')}>chat</button>
       </div>
       {currentDemo === 'demo1' && <Demo1 className="content" />}
       {currentDemo === 'demo2' && <Demo2 className="content" />}
@@ -70,6 +72,7 @@ function App() {
       {currentDemo === 'demo9' && <Demo9 className="content" />}
       {currentDemo === 'demo10' && <Demo10 className="content" />}
       {currentDemo === 'demor1' && <DemoRealWorld1 className="content" />}
+      {currentDemo === 'demochat' && <DemoChat className="content" />}
     </div>
   )
 }

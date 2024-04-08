@@ -119,6 +119,15 @@ const anchorStrategyDefault: AnchorSelector<DataBase> = (
   _lastTouchPosition
 ) => getIndexAndOffsetWithDistance(entries, scroll - contentOffset)
 
+const anchorStrategyDefaultEnd: AnchorSelector<DataBase> = (
+  entries,
+  contentOffset,
+  scroll,
+  containerSize,
+  _lastTouchPosition
+) =>
+  getIndexAndOffsetWithDistance(entries, scroll - contentOffset + containerSize)
+
 const REQUIRE_SAFARI_WORKAROUND =
   !/Edg\//.test(navigator.userAgent) &&
   !/Chrome\//.test(navigator.userAgent) &&
@@ -167,7 +176,7 @@ interface RawDynamicScrollProps<Data extends DataBase> {
   onSelectAnchor?: 'default' | 'touch' | AnchorSelector<Data>
   direction?: 'x' | 'y'
 
-  /** 
+  /**
    * Control how `offset` in `progress` event and value of `initialOffset` handled.
    * When set to `end`, the progress is calculated against the bottom/right of screen instead.
    * Useful for chatroom layout as it is usually start from the end of screen.
@@ -365,13 +374,21 @@ and it will prevent progress event from being fired.
       lastTouchPosition: number
     ) => {
       return onSelectAnchor == null || onSelectAnchor == 'default'
-        ? anchorStrategyDefault(
-            entries,
-            contentOffset,
-            scroll,
-            containerSize,
-            lastTouchPosition
-          )
+        ? scrollRoot === 'start'
+          ? anchorStrategyDefault(
+              entries,
+              contentOffset,
+              scroll,
+              containerSize,
+              lastTouchPosition
+            )
+          : anchorStrategyDefaultEnd(
+              entries,
+              contentOffset,
+              scroll,
+              containerSize,
+              lastTouchPosition
+            )
         : onSelectAnchor === 'touch'
         ? anchorStrategyTouch(
             entries,
@@ -398,16 +415,35 @@ and it will prevent progress event from being fired.
       screenHeight.current = newSize
 
       // console.log('initial scroll to', newContainerOffset)
-      if (direction === 'x') {
-        el.scrollLeft = newContainerOffset + (initialOffset ?? 0)
-      } else {
-        el.scrollTop = newContainerOffset + (initialOffset ?? 0)
+      if (scrollRoot === 'start') {
+        if (direction === 'x') {
+          el.scrollLeft = newContainerOffset + (initialOffset ?? 0)
+        } else {
+          el.scrollTop = newContainerOffset + (initialOffset ?? 0)
+        }
+      } /* if (scrollRoot === 'end') */ else {
+        if (direction === 'x') {
+          el.scrollLeft = newContainerOffset + (initialOffset ?? 0) - newSize
+        } else {
+          el.scrollTop = newContainerOffset + (initialOffset ?? 0) - newSize
+        }
       }
 
       // trigger initial load
       onScrollEvent()
     } else if (screenHeight.current !== newSize) {
+      const el = elementRef.current!
+      const oldSize = screenHeight.current
       screenHeight.current = newSize
+      if (scrollRoot === 'end') {
+        if (direction === 'x') {
+          el.scrollLeft -= (newSize - oldSize)
+        } else {
+          if (el.offsetHeight + el.scrollTop < el.scrollHeight - (newSize - oldSize)) {
+            el.scrollTop -= (newSize - oldSize)
+          }
+        }
+      }
       onScrollEvent()
     }
   })
@@ -601,13 +637,15 @@ and it will prevent progress event from being fired.
       tweakUnloadDistNext = 'grow'
 
       // do not perform scroll reset before initial load because it would corrupt initial scroll position
-      const initialIndexAndOffset = !initialAppendFinished ? [0, 0] as [number, number]: selectAnchor(
-        newDataStates,
-        newPrependSpace,
-        currentScroll,
-        currentSize,
-        lastTouchPosition.current
-      )
+      const initialIndexAndOffset = !initialAppendFinished
+        ? ([0, 0] as [number, number])
+        : selectAnchor(
+            newDataStates,
+            newPrependSpace,
+            currentScroll,
+            currentSize,
+            lastTouchPosition.current
+          )
 
       const initialPosition =
         newPrependSpace +
@@ -753,7 +791,7 @@ and it will prevent progress event from being fired.
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
 
       // we need to wait for the content to load until it have enough space for scrollbar
-      if (newPrependSpace + heightSum > currentScroll + currentSize) {
+      if (newPrependSpace + heightSum >= currentScroll + currentSize) {
         initialAppended = true
         setInitialAppendFinished(true)
       }
@@ -798,13 +836,22 @@ and it will prevent progress event from being fired.
     ) {
       const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
-      const [index, offset] = anchorStrategyDefault(
-        newDataStates,
-        newPrependSpace,
-        currentScroll,
-        currentSize,
-        lastTouchPosition.current
-      )
+      const [index, offset] =
+        scrollRoot === 'start'
+          ? anchorStrategyDefault(
+              newDataStates,
+              newPrependSpace,
+              currentScroll,
+              currentSize,
+              lastTouchPosition.current
+            )
+          : anchorStrategyDefaultEnd(
+              newDataStates,
+              newPrependSpace,
+              currentScroll,
+              currentSize,
+              lastTouchPosition.current
+            )
       const currentItem = newDataStates.find((i) => i.index === index)
       // do not emit progress unless initial loaded
       if (initialAppended && initialPrepended) {
@@ -1046,13 +1093,22 @@ and it will prevent progress event from being fired.
     const currentContext = dynamicScrollContext
     const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
     const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
-    const [index, offset] = anchorStrategyDefault(
-      currentContext.dataStates,
-      currentContext.prependSpace,
-      currentScroll,
-      currentSize,
-      lastTouchPosition.current
-    )
+    const [index, offset] =
+      scrollRoot === 'start'
+        ? anchorStrategyDefault(
+            currentContext.dataStates,
+            currentContext.prependSpace,
+            currentScroll,
+            currentSize,
+            lastTouchPosition.current
+          )
+        : anchorStrategyDefaultEnd(
+            currentContext.dataStates,
+            currentContext.prependSpace,
+            currentScroll,
+            currentSize,
+            lastTouchPosition.current
+          )
     const currentItem = currentContext.dataStates.find((i) => i.index === index)
     onProgress(currentItem, index, offset, currentContext.dataStates)
   }
