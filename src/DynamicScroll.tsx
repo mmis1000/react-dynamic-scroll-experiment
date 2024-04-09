@@ -126,7 +126,10 @@ const anchorStrategyDefaultEnd: AnchorSelector<DataBase> = (
   containerSize,
   _lastTouchPosition
 ) =>
-  getIndexAndOffsetWithDistance(entries, scroll - contentOffset + containerSize)
+  getIndexAndOffsetWithDistanceEnd(
+    entries,
+    scroll - contentOffset + containerSize
+  )
 
 const REQUIRE_SAFARI_WORKAROUND =
   !/Edg\//.test(navigator.userAgent) &&
@@ -223,6 +226,35 @@ const getIndexAndOffsetWithDistance = (
   return [entries[entries.length - 1]!.index, currentOffset + lastHeight]
 }
 
+const getIndexAndOffsetWithDistanceEnd = (
+  entries: DataEntry<DataBase>[],
+  distance: number
+): [index: number, offset: number] => {
+  if (entries.length === 0) {
+    // console.log([0, distance]);
+    return [0, distance]
+  }
+
+  if (distance < 0) {
+    return [entries[0]!.index, distance]
+  }
+
+  let currentOffset = distance
+
+  for (let i = 0; i < entries.length; i++) {
+    const height = getHeight(entries[i])
+    // FIXME: workaround subpixel scroll
+    if (currentOffset <= height - 1) {
+      // console.log([entries[i]!.index, currentOffset, height]);
+      return [entries[i]!.index, currentOffset - height]
+    }
+    currentOffset -= height
+  }
+
+  // console.log([entries[entries.length - 1]!.index, currentOffset + lastHeight]);
+  return [entries[entries.length - 1]!.index, currentOffset]
+}
+
 const getDistanceWithIndexAndOffset = (
   entries: DataEntry<DataBase>[],
   index: number,
@@ -244,6 +276,26 @@ const getDistanceWithIndexAndOffset = (
   // throw new Error('invalid index ' + index)
 }
 
+const getDistanceWithIndexAndOffsetEnd = (
+  entries: DataEntry<DataBase>[],
+  index: number,
+  offset: number
+): number => {
+  if (entries.length === 0) {
+    return offset
+  }
+  let heightSum = 0
+  for (let i = 0; i < entries.length; i++) {
+    const currentIndex = entries[i].index
+    if (currentIndex === index) {
+      return heightSum + offset + getHeight(entries[i])
+    }
+    heightSum += getHeight(entries[i])
+  }
+  // it can happen if the scroll started at end with 0 items already appended
+  return 0
+  // throw new Error('invalid index ' + index)
+}
 interface DynamicScrollContext<T extends DataBase> {
   startIndex: number
   dataStates: DataEntry<T>[]
@@ -437,10 +489,13 @@ and it will prevent progress event from being fired.
       screenHeight.current = newSize
       if (scrollRoot === 'end') {
         if (direction === 'x') {
-          el.scrollLeft -= (newSize - oldSize)
+          el.scrollLeft -= newSize - oldSize
         } else {
-          if (el.offsetHeight + el.scrollTop < el.scrollHeight - (newSize - oldSize)) {
-            el.scrollTop -= (newSize - oldSize)
+          if (
+            el.offsetHeight + el.scrollTop <
+            el.scrollHeight - (newSize - oldSize)
+          ) {
+            el.scrollTop -= newSize - oldSize
           }
         }
       }
@@ -649,11 +704,17 @@ and it will prevent progress event from being fired.
 
       const initialPosition =
         newPrependSpace +
-        getDistanceWithIndexAndOffset(
-          newDataStates,
-          initialIndexAndOffset[0],
-          initialIndexAndOffset[1]
-        )
+        (scrollRoot === 'start'
+          ? getDistanceWithIndexAndOffset(
+              newDataStates,
+              initialIndexAndOffset[0],
+              initialIndexAndOffset[1]
+            )
+          : getDistanceWithIndexAndOffsetEnd(
+              newDataStates,
+              initialIndexAndOffset[0],
+              initialIndexAndOffset[1]
+            ))
 
       for (const task of patchTasks) {
         const newItems = newDataStates.map((i) => {
@@ -671,11 +732,17 @@ and it will prevent progress event from being fired.
 
       const newPosition =
         newPrependSpace +
-        getDistanceWithIndexAndOffset(
-          newDataStates,
-          initialIndexAndOffset[0],
-          initialIndexAndOffset[1]
-        )
+        (scrollRoot === 'start'
+          ? getDistanceWithIndexAndOffset(
+              newDataStates,
+              initialIndexAndOffset[0],
+              initialIndexAndOffset[1]
+            )
+          : getDistanceWithIndexAndOffsetEnd(
+              newDataStates,
+              initialIndexAndOffset[0],
+              initialIndexAndOffset[1]
+            ))
       newPrependSpace -= newPosition - initialPosition
       // console.log('patch finished with offset ', (newPosition - initialPosition), ' and ', patchTasks.length, ' tasks')
     }
