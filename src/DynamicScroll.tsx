@@ -693,7 +693,7 @@ and it will prevent progress event from being fired.
 
       // do not perform scroll reset before initial load because it would corrupt initial scroll position
       const initialIndexAndOffset = !initialAppendFinished
-        ? ([0, 0] as [number, number])
+        ? ([initialIndex, 0] as [number, number])
         : selectAnchor(
             newDataStates,
             newPrependSpace,
@@ -773,7 +773,11 @@ and it will prevent progress event from being fired.
       fixHead ||
       sortedNonPatchTask.find((i) => i.action === 'forceSync') != null
 
-    if (isScrolling.current && REQUIRE_SAFARI_WORKAROUND && !forcedScrollSync) {
+    const hasLoaded = initialAppendFinished && initialPrependFinished
+
+    let actualPrependSpace = newPrependSpace
+
+    if (hasLoaded && isScrolling.current && REQUIRE_SAFARI_WORKAROUND && !forcedScrollSync) {
       // flushSync(() => {
       if (fixFoot) setFootFixed(true)
       setDynamicScrollContext({
@@ -791,6 +795,8 @@ and it will prevent progress event from being fired.
       const targetSpace = fixHead
         ? 0
         : Math.max(headFixed ? newPrependSpace : prependSpace, 0)
+      actualPrependSpace = targetSpace
+
       const scrollOffset = -(newPrependSpace - targetSpace)
 
       const scrollLeft = el.scrollLeft
@@ -858,9 +864,21 @@ and it will prevent progress event from being fired.
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
 
       // we need to wait for the content to load until it have enough space for scrollbar
-      if (newPrependSpace + heightSum >= currentScroll + currentSize) {
+      if (scrollRoot !== 'start' || (newPrependSpace + heightSum >= currentScroll + currentSize)) {
         initialAppended = true
         setInitialAppendFinished(true)
+
+        if (scrollRoot === 'end') {
+          const basePosition = getDistanceWithIndexAndOffsetEnd(newDataStates, initialIndex ?? 0, initialOffset ?? 0)
+          const baseScrollDist = basePosition  + actualPrependSpace
+          const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+          const newScroll = baseScrollDist - currentSize
+          if (direction === 'x') {
+            el.scrollLeft = newScroll
+          } else {
+            el.scrollTop = newScroll
+          } 
+        }
       }
     }
 
@@ -922,7 +940,11 @@ and it will prevent progress event from being fired.
       const currentItem = newDataStates.find((i) => i.index === index)
       // do not emit progress unless initial loaded
       if (initialAppended && initialPrepended) {
-        onProgress(currentItem, index, offset, newDataStates)
+        try {
+          onProgress(currentItem, index, offset, newDataStates)
+        } catch (err) {
+          console.error(err)
+        }
       }
     }
   })

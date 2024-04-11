@@ -1,4 +1,4 @@
-import { ReactElement, useState } from 'react'
+import { ReactElement, useRef, useState } from 'react'
 import {
   DynamicScroll,
   DynamicChildElementProps,
@@ -14,11 +14,15 @@ const DELAY = 20
 export function ChatView({
   className,
   startIndex = 0,
+  startOffset = 0,
   onJump = () => {},
+  onProgress: onProgressUpdate = (index, offset) => {},
 }: {
   className?: string
   startIndex: number
+  startOffset: number
   onJump: (target: number) => void
+  onProgress: (index: number, offset: number) => void,
 }) {
   const onLoadMore: LoadHandler<{
     index: number
@@ -36,7 +40,7 @@ export function ChatView({
     }
 
     const count =
-      direction === 'next' ? Math.min(1 - factory(0, 1).index, COUNT) : COUNT
+      direction === 'next' ? Math.min(0 - factory(0, 1).index, COUNT) : COUNT
 
     for (let i = 0; i < count; i++) {
       const entryInfo = factory(i, count)
@@ -71,10 +75,10 @@ export function ChatView({
     }
     return arr
   }
-
-  // FIXME: wrong offset
-  const onProgress: ProgressHandler<{ index: number; initialHeight: number }> =
-    console.log
+  const onProgress: ProgressHandler<{ index: number; initialHeight: number }> = (current, index, offset, full) => {
+    console.log(index, offset)
+    onProgressUpdate(index, offset)
+  }
 
   return (
     <DynamicScroll
@@ -83,6 +87,7 @@ export function ChatView({
       initialFootLocked={startIndex !== 0}
       initialAppendSpace={startIndex === 0 ? 0 : undefined}
       initialIndex={startIndex}
+      initialOffset={startOffset}
       onLoadMore={onLoadMore}
       onProgress={onProgress}
       scrollRoot="end"
@@ -90,18 +95,82 @@ export function ChatView({
   )
 }
 
+
+const useInitialPageParam = function <T>(
+  name: string,
+  defaultValue: string,
+  transform: (str: string) => T
+) {
+  const url = new URL(location.href)
+  const initialPageStr = url.searchParams.get(name) ?? defaultValue
+  const initialPageParsed = transform(initialPageStr)
+  const initialPageRefed = useRef(initialPageParsed)
+  return initialPageRefed.current
+}
+
 export function DemoChat({ className }: { className?: string }) {
-  const [initialIndex, setInitialIndex] = useState(0)
+
+  const initialPageIndex = useInitialPageParam('index', '-1', (str) =>
+    /^-?\d+$/.test(str) ? Number(str) : -1
+  )
+  const initialPageScroll = useInitialPageParam('scroll', '0', (str) =>
+    /^-?\d+(\.\d+)?$/.test(str) ? Number(str) : 0
+  )
+
+  const [initialIndex, setInitialIndex] = useState(initialPageIndex)
+  const [initialScroll, setInitialScroll] = useState(initialPageScroll)
+
   const [instId, setInstId] = useState(0)
 
+  const rafId = useRef<null | ReturnType<typeof setTimeout>>(null)
+
+  const onProgress = (index: number, offset: number) => {
+    if (rafId.current != null) {
+      clearTimeout(rafId.current)
+    }
+
+    const url = new URL(location.href)
+    if (
+      String(index) !== url.searchParams.get('index')
+    ) {
+      url.searchParams.set('index', String(index))
+      url.searchParams.set('scroll', String(offset))
+      history.replaceState(undefined, '', url)
+    } else {
+      rafId.current = setTimeout(() => {
+        if (String(offset) !== url.searchParams.get('scroll')) {
+          url.searchParams.set('index', String(index))
+          url.searchParams.set('scroll', String(offset))
+          history.replaceState(undefined, '', url)
+        }
+      }, 100)
+    }
+  }
+
+  const jumpToItem = (item: number) => {
+    setInitialScroll(0)
+    setInitialIndex(item)
+    setInstId((i) => i + 1)
+  }
+
   return (
-    <ChatView
-      key={instId}
-      className={className}
-      startIndex={initialIndex}
-      onJump={(i) => {
-        setInitialIndex(i + 1), setInstId((i) => i + 1)
-      }}
-    />
+    <div className={`demo-chat ${className}`}>
+      <ChatView
+        className="view"
+        key={instId}
+        startIndex={initialIndex}
+        startOffset={initialScroll}
+        onJump={jumpToItem}
+        onProgress={onProgress}
+      />
+      <button
+        className="to-bottom"
+        onClick={() => {
+          jumpToItem(-1)
+        }}
+      >
+        V
+      </button>
+    </div>
   )
 }

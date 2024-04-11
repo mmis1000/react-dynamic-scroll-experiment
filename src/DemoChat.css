@@ -1,0 +1,23 @@
+.demo-chat {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+
+.demo-chat > .view {
+  flex: 1 1 auto;
+}
+
+.demo-chat > .to-bottom {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  right: 1em;
+  bottom: 1em;
+  width: 4em;
+  height: 4em;
+  border-radius: 2em;
+  background: white;
+}
