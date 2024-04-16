@@ -16,7 +16,7 @@ export function ChatView({
   startIndex = 0,
   startOffset = 0,
   onJump = () => {},
-  onProgress: onProgressUpdate = (index, offset) => {},
+  onProgress: onProgressUpdate = (_index, _offset) => {},
 }: {
   className?: string
   startIndex: number
@@ -75,7 +75,7 @@ export function ChatView({
     }
     return arr
   }
-  const onProgress: ProgressHandler<{ index: number; initialHeight: number }> = (current, index, offset, full) => {
+  const onProgress: ProgressHandler<{ index: number; initialHeight: number }> = (_current, index, offset, _full) => {
     console.log(index, offset)
     onProgressUpdate(index, offset)
   }
