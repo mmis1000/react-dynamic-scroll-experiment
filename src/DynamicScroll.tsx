@@ -925,14 +925,14 @@ and it will prevent progress event from being fired.
         scrollRoot === 'start'
           ? anchorStrategyDefault(
               newDataStates,
-              newPrependSpace,
+              actualPrependSpace,
               currentScroll,
               currentSize,
               lastTouchPosition.current
             )
           : anchorStrategyDefaultEnd(
               newDataStates,
-              newPrependSpace,
+              actualPrependSpace,
               currentScroll,
               currentSize,
               lastTouchPosition.current
