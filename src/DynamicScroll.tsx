@@ -1199,7 +1199,9 @@ and it will prevent progress event from being fired.
             lastTouchPosition.current
           )
     const currentItem = currentContext.dataStates.find((i) => i.index === index)
-    onProgress(currentItem, index, offset, currentContext.dataStates)
+    if (initialPrependFinished && initialAppendFinished) {
+      onProgress(currentItem, index, offset, currentContext.dataStates)
+    }
   }
 
   const onScrollEvent = useEvent(onScroll)
