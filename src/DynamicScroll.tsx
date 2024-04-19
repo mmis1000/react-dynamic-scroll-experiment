@@ -425,7 +425,7 @@ and it will prevent progress event from being fired.
       // touch position on the screen (screen position)
       lastTouchPosition: number
     ) => {
-      return onSelectAnchor == null || onSelectAnchor == 'default'
+      return onSelectAnchor == null || onSelectAnchor === 'default'
         ? scrollRoot === 'start'
           ? anchorStrategyDefault(
               entries,
@@ -565,6 +565,7 @@ and it will prevent progress event from being fired.
 
   const pendingJob = useRef<Job[]>([])
   const taskList = useRef<Task[]>([])
+  const initialPatchTaskList = useRef<Task[]>([])
 
   function appendJob(task: Job) {
     pendingJob.current = [...pendingJob.current, task]
@@ -687,64 +688,68 @@ and it will prevent progress event from being fired.
       }
     }
 
-    if (patchTasks.length > 0) {
-      tweakUnloadDistPrev = 'grow'
-      tweakUnloadDistNext = 'grow'
+    if (initialPrependFinished && initialAppendFinished) {
+      if (patchTasks.length > 0) {
+        tweakUnloadDistPrev = 'grow'
+        tweakUnloadDistNext = 'grow'
 
-      // do not perform scroll reset before initial load because it would corrupt initial scroll position
-      const initialIndexAndOffset = !initialAppendFinished
-        ? ([initialIndex, 0] as [number, number])
-        : selectAnchor(
-            newDataStates,
-            newPrependSpace,
-            currentScroll,
-            currentSize,
-            lastTouchPosition.current
-          )
-
-      const initialPosition =
-        newPrependSpace +
-        (scrollRoot === 'start'
-          ? getDistanceWithIndexAndOffset(
+        // do not perform scroll reset before initial load because it would corrupt initial scroll position
+        const initialIndexAndOffset = !initialAppendFinished
+          ? ([initialIndex, 0] as [number, number])
+          : selectAnchor(
               newDataStates,
-              initialIndexAndOffset[0],
-              initialIndexAndOffset[1]
+              newPrependSpace,
+              currentScroll,
+              currentSize,
+              lastTouchPosition.current
             )
-          : getDistanceWithIndexAndOffsetEnd(
-              newDataStates,
-              initialIndexAndOffset[0],
-              initialIndexAndOffset[1]
-            ))
 
-      for (const task of patchTasks) {
-        const newItems = newDataStates.map((i) => {
-          const patch = task.items.find((j) => j.index === i.index)
-          if (patch) {
-            return {
-              ...i,
-              ...patch,
+        const initialPosition =
+          newPrependSpace +
+          (scrollRoot === 'start'
+            ? getDistanceWithIndexAndOffset(
+                newDataStates,
+                initialIndexAndOffset[0],
+                initialIndexAndOffset[1]
+              )
+            : getDistanceWithIndexAndOffsetEnd(
+                newDataStates,
+                initialIndexAndOffset[0],
+                initialIndexAndOffset[1]
+              ))
+
+        for (const task of patchTasks) {
+          const newItems = newDataStates.map((i) => {
+            const patch = task.items.find((j) => j.index === i.index)
+            if (patch) {
+              return {
+                ...i,
+                ...patch,
+              }
             }
-          }
-          return i
-        })
-        newDataStates = newItems
-      }
+            return i
+          })
+          newDataStates = newItems
+        }
 
-      const newPosition =
-        newPrependSpace +
-        (scrollRoot === 'start'
-          ? getDistanceWithIndexAndOffset(
-              newDataStates,
-              initialIndexAndOffset[0],
-              initialIndexAndOffset[1]
-            )
-          : getDistanceWithIndexAndOffsetEnd(
-              newDataStates,
-              initialIndexAndOffset[0],
-              initialIndexAndOffset[1]
-            ))
-      newPrependSpace -= newPosition - initialPosition
-      // console.log('patch finished with offset ', (newPosition - initialPosition), ' and ', patchTasks.length, ' tasks')
+        const newPosition =
+          newPrependSpace +
+          (scrollRoot === 'start'
+            ? getDistanceWithIndexAndOffset(
+                newDataStates,
+                initialIndexAndOffset[0],
+                initialIndexAndOffset[1]
+              )
+            : getDistanceWithIndexAndOffsetEnd(
+                newDataStates,
+                initialIndexAndOffset[0],
+                initialIndexAndOffset[1]
+              ))
+        newPrependSpace -= newPosition - initialPosition
+        // console.log('patch finished with offset ', (newPosition - initialPosition), ' and ', patchTasks.length, ' tasks')
+      }
+    } else {
+      initialPatchTaskList.current = [...initialPatchTaskList.current, ...patchTasks]
     }
 
     const heightSum = newDataStates.reduce((p, c) => p + c.size, 0)
@@ -821,7 +826,7 @@ and it will prevent progress event from being fired.
         })
       })
 
-      if (scrollOffset != 0) {
+      if (scrollOffset !== 0) {
         if (forcedScrollSync) {
           const old = el.style.overflow
           el.style.overflow = 'hidden'
@@ -864,7 +869,7 @@ and it will prevent progress event from being fired.
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
 
       // we need to wait for the content to load until it have enough space for scrollbar
-      if (scrollRoot !== 'start' || (newPrependSpace + heightSum >= currentScroll + currentSize)) {
+      if (scrollRoot !== 'start' || (actualPrependSpace + heightSum >= currentScroll + currentSize)) {
         initialAppended = true
         setInitialAppendFinished(true)
 
@@ -891,6 +896,11 @@ and it will prevent progress event from being fired.
     ) {
       initialPrepended = true
       setInitialPrependFinished(true)
+    }
+
+    if (initialPrepended && initialAppended && initialPatchTaskList.current.length > 0) {
+      initialPatchTaskList.current = []
+      taskList.current = initialPatchTaskList.current
     }
 
     // check once more after apply changes in case insert/shrink once isn't enough
