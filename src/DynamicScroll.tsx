@@ -326,6 +326,7 @@ export const DynamicScroll = <T extends DataBase>({
   style,
   direction = 'y',
   scrollRoot = 'start',
+  onScroll: onScrollProp,
   ...props
 }: DynamicScrollProps<T>) => {
   // this is only used in event to check if screen size is changed,
@@ -1149,19 +1150,25 @@ and it will prevent progress event from being fired.
     ) {
       removeTaskOfType('unloadPrev')
       const toUnloadDist = distanceToHead - maxLiveViewportPrev
+      const maxUnloadDist = distanceToHead - preloadRange
       let sum = 0
       let count = 0
       for (let i = 0; i < currentContext.dataStates.length; i++) {
+        if (sum + currentContext.dataStates[i].size > maxUnloadDist) {
+          break
+        }
         sum += currentContext.dataStates[i].size
         count++
         if (sum >= toUnloadDist) {
           break
         }
       }
-      appendTask({
-        action: 'unloadPrev',
-        count,
-      })
+      if (count > 0) {
+        appendTask({
+          action: 'unloadPrev',
+          count,
+        })
+      }
     }
     if (
       distanceToEnd > maxLiveViewportNext &&
@@ -1169,9 +1176,13 @@ and it will prevent progress event from being fired.
     ) {
       removeTaskOfType('unloadNext')
       const toUnloadDist = distanceToEnd - maxLiveViewportNext
+      const maxUnloadDist = distanceToEnd - preloadRange
       let sum = 0
       let count = 0
       for (let i = currentContext.dataStates.length - 1; i >= 0; i--) {
+        if (sum + currentContext.dataStates[i].size > maxUnloadDist) {
+          break
+        }
         sum += currentContext.dataStates[i].size
         // console.log(sum)
         count++
@@ -1179,10 +1190,12 @@ and it will prevent progress event from being fired.
           break
         }
       }
-      appendTask({
-        action: 'unloadNext',
-        count,
-      })
+      if (count > 0) {
+        appendTask({
+          action: 'unloadNext',
+          count,
+        })
+      }
     }
 
     // console.log(REQUIRE_SAFARI_WORKAROUND, currentContext.prependSpace, currentScroll, headFixed)
@@ -1199,7 +1212,7 @@ and it will prevent progress event from being fired.
   }
 
   const performCheckEvent = useEvent(performCheck)
-  const onScroll = () => {
+  const onScroll = (ev?: React.UIEvent<HTMLDivElement, UIEvent>) => {
     performCheck()
     const el = elementRef.current
     if (!el) return
@@ -1226,6 +1239,13 @@ and it will prevent progress event from being fired.
     const currentItem = currentContext.dataStates.find((i) => i.index === index)
     if (initialPrependFinished && initialAppendFinished) {
       onProgress(currentItem, index, offset, currentContext.dataStates)
+    }
+
+    if (ev != null) {
+      ev.preventDefault = () => {}
+      ev.stopPropagation = () => {}
+
+      onScrollProp?.(ev)
     }
   }
 
