@@ -858,6 +858,7 @@ and it will prevent progress event from being fired.
     }
 
     let initialAppended = initialAppendFinished
+    let initialPrepended = initialPrependFinished
 
     if (
       !initialAppendFinished &&
@@ -873,6 +874,12 @@ and it will prevent progress event from being fired.
         initialAppended = true
         setInitialAppendFinished(true)
 
+        if (currentScroll - actualPrependSpace >= preloadRange) {
+          // in this case, it will never happen, so we just make it happen
+          initialPrepended = true
+          setInitialPrependFinished(true)
+        }
+
         if (scrollRoot === 'end') {
           const basePosition = getDistanceWithIndexAndOffsetEnd(newDataStates, initialIndex ?? 0, initialOffset ?? 0)
           const baseScrollDist = basePosition  + actualPrependSpace
@@ -887,7 +894,6 @@ and it will prevent progress event from being fired.
       }
     }
 
-    let initialPrepended = initialPrependFinished
     if (
       !initialPrependFinished &&
       sortedNonPatchTask.filter(
@@ -896,6 +902,15 @@ and it will prevent progress event from being fired.
     ) {
       initialPrepended = true
       setInitialPrependFinished(true)
+
+      const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
+
+      if (actualPrependSpace + heightSum - (screenTop + currentSize) >= preloadRange) {
+        // in this case, it will never happen, so we just make it happen
+        initialAppended = true
+        setInitialAppendFinished(true)
+      }
+
     }
 
     if (initialPrepended && initialAppended && initialPatchTaskList.current.length > 0) {
