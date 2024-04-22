@@ -904,9 +904,10 @@ and it will prevent progress event from being fired.
       initialPrepended = true
       setInitialPrependFinished(true)
 
+      const currentScroll = direction === 'y' ? el.scrollTop : el.scrollLeft
       const currentSize = direction === 'y' ? el.offsetHeight : el.offsetWidth
 
-      if (actualPrependSpace + heightSum - (screenTop + currentSize) >= preloadRange) {
+      if (actualPrependSpace + heightSum - (currentScroll + currentSize) >= preloadRange) {
         // in this case, it will never happen, so we just make it happen
         initialAppended = true
         setInitialAppendFinished(true)
